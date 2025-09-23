@@ -64,10 +64,10 @@ const char* NTP_SERVER = "pool.ntp.org";
 bool pc_status = false;
 bool last_pc_status = false;
 
-bool temperature = 0;
-bool last_temperature = 0;
-bool humidity = 0;
-bool last_humidity = 0;
+float temperature = 0;
+float last_temperature = 0;
+float humidity = 0;
+float last_humidity = 0;
 
 int rgb_programm = RGB_OFF;
 int last_rgb_programm = RGB_UNKOWN;
@@ -92,7 +92,14 @@ void SwitchChange();
 void ButtonChange();
 bool BeginRGBTimer(float rate);
 void RGBCallback(timer_callback_args_t __attribute((unused)) *p_args);
-void updateRGB();
+void UpdateRGB();
+void ConnectWifi();
+void ConnectMqtt();
+void PublishData();
+void UpdateMqtt();
+void OnMqttMessage();
+void handlePcCommand(String command);
+void handleRgbCommand(String command);
 
 
 void setup() {
@@ -110,23 +117,25 @@ void setup() {
   attachInterrupt(switch_pin, SwitchChange, CHANGE);
   attachInterrupt(button_pin, ButtonChange, CHANGE);
 
-  if(!BeginRGBTimer(20))Serial.println("Failed starting RGBTimer"); //20 Hz
+  dht.begin();
+  BeginRGBTimer(10); //10 Hz
   FastLED.addLeds<WS2812B, led_pin, GRB>(leds, RGB_COUNT);
 
+  ConnectWifi();
+  ConnectMqtt();
+  timeClient.begin();
+  WDT.begin(5000);
+  Serial.println("Finished Setup, starting loop...");
 }
 
 void loop()
 {
-  updateRGB();
-  if(Serial.available())
-  {
-    while(Serial.available())Serial.read();
-    Serial.print("UserProg: ");
-    Serial.println(user_rgb_programm);
-  }
+  UpdateRGB();
+  UpdateMqtt();
+  WDT.refresh();
 }
 
-void updateRGB()
+void UpdateRGB()
 {
   if(rgb_brightness!=last_rgb_brightness)
   {
@@ -138,6 +147,20 @@ void updateRGB()
   {
     flushRGB = false;
     FastLED.show();
+  }
+}
+
+void UpdateMqtt()
+{
+  if(!mqttClient.connected())
+  {
+    Serial.println("MQTT Connection lost. Reconnect.");
+    ConnectMqtt();
+  }
+  mqttClient.poll();
+  if (millis() - last_publish > publish_interval) {
+    last_publish = millis();
+    PublishData();
   }
 }
 
@@ -208,12 +231,12 @@ void RGBCallback(timer_callback_args_t __attribute((unused)) *p_args)
       break;
     case RGB_SWITCH_BLINK:
       if(rgb_programm!=local_last_rgb_programm)cycle_counter=0;
-      if(!(cycle_counter%14))
+      if(!((cycle_counter+4)%8))
       {
         fill_solid(leds, RGB_COUNT, CRGB::Red);
         flushRGB = true;
       }
-      else if(!((cycle_counter+7)%14))
+      else if(!(cycle_counter%8))
       {
         fill_solid(leds, RGB_COUNT, CRGB::Black);
         flushRGB = true;
@@ -245,6 +268,45 @@ void RGBCallback(timer_callback_args_t __attribute((unused)) *p_args)
   cycle_counter++;
 }
 
+void handlePcCommand(String command) {
+  if (command == "TOGGLE") {
+    digitalWrite(relay_pin,HIGH);
+    delay(1000);
+    digitalWrite(relay_pin,LOW);
+  }
+  else if (command == "RESET")
+  {
+    digitalWrite(relay_pin,HIGH);
+    WDT.refresh();
+    delay(3000);
+    WDT.refresh();
+    delay(3000);
+    WDT.refresh();
+    digitalWrite(relay_pin,LOW);
+  }
+  else {
+    Serial.print("Unknown PC command: ");
+    Serial.println(command);
+  }
+}
+
+void handleRgbCommand(String command) {
+  /*
+  Serial.print("Handling RGB command: ");
+  Serial.println(command);
+
+  int code = getHexByName(command.c_str());
+  if (code == 0)
+  {
+    Serial.print("Ungueltiger Code: ");
+    Serial.println(command);
+    return;
+  }
+  Serial.println("NOT IMPLEMENTED");
+  //IrSender.sendNEC(code, 32);
+  */
+}
+
 bool BeginRGBTimer(float rate) {
   uint8_t timer_type = GPT_TIMER;
   int8_t tindex = FspTimer::get_available_timer(timer_type);
@@ -273,4 +335,102 @@ bool BeginRGBTimer(float rate) {
     return false;
   }
   return true;
+}
+
+void OnMqttMessage(int messageSize) {
+  String topic = mqttClient.messageTopic();
+  String payload = "";
+  while (mqttClient.available()) {
+    payload += (char)mqttClient.read();
+  }
+
+  Serial.print("Received message on topic: ");
+  Serial.println(topic);
+  Serial.print("Payload: ");
+  Serial.println(payload);
+
+  if (topic == TOPIC_PC_CMD) {
+    handlePcCommand(payload);
+  }
+
+  if (topic == TOPIC_RGB_CMD) {
+    handleRgbCommand(payload);
+  }
+}
+
+void PublishData() {
+
+  if (pc_status != last_pc_status) {
+    last_pc_status = pc_status;
+    mqttClient.beginMessage(TOPIC_PC_STATUS, true, 1); // topic, retained, qos
+    mqttClient.print(pc_status);
+    mqttClient.endMessage();
+  }
+
+  if(rgb_programm != last_rgb_programm)
+  {
+    last_rgb_programm = rgb_programm;
+    mqttClient.beginMessage(TOPIC_RGB_STATUS, true, 1); // topic, retained, qos
+    mqttClient.print(rgb_programm);
+    mqttClient.endMessage();
+  }
+
+  temperature = dht.readTemperature();
+  humidity = dht.readHumidity();
+  if (isnan(temperature) || isnan(humidity)) {
+    //Failed to read DHT Data, dont publish garbage data
+    return;
+  }
+
+  if (temperature != last_temperature) {
+    last_temperature = temperature;
+    mqttClient.beginMessage(TOPIC_TEMP, false, 0); // topic, retained, qos
+    mqttClient.print(temperature);
+    mqttClient.endMessage();
+  }
+  
+  if (abs(humidity - last_humidity) != 0) {
+    last_humidity = humidity;
+    mqttClient.beginMessage(TOPIC_PC_HUMIDITY, false, 0);
+    mqttClient.print(humidity);
+    mqttClient.endMessage();
+  }
+}
+
+void ConnectMqtt() {
+  mqttClient.onMessage(OnMqttMessage);
+  mqttClient.setUsernamePassword(mqtt_user, mqtt_pass);
+
+  String clientId = "arduino-uno-r4-" + String(random(0xffff), HEX);
+  mqttClient.setId(clientId);
+
+  Serial.print("Connecting to MQTT broker '");
+  Serial.print(broker);
+  Serial.print("'...");
+  while (!mqttClient.connect(broker, port)) {
+    Serial.print(".");
+    delay(700);
+    WDT.refresh();
+  }
+  Serial.println("\nMQTT connected!");
+
+  mqttClient.subscribe(TOPIC_PC_CMD, 2);
+  mqttClient.subscribe(TOPIC_RGB_CMD, 2);
+}
+
+void ConnectWifi() {
+  IPAddress dns(8, 8, 8, 8);
+  WiFi.setDNS(dns);
+
+  Serial.print("Connecting to Wifi '");
+  Serial.print(WIFI_SSID);
+  Serial.print("'...");
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+    WDT.refresh();
+  }
+  Serial.println("\nConnected! IP-Adress: " + WiFi.localIP().toString());
 }
