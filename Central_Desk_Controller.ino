@@ -3,6 +3,7 @@
 #include <WDT.h>
 #include <DHT.h>
 #include <FastLED.h>
+#include "animations.h"
 #include "FspTimer.h"
 #include <WiFiS3.h>
 #include <WiFiUdp.h>
@@ -15,7 +16,7 @@
 
 #define DHTTYPE DHT22
 #define RGB_COUNT 211
-#define COMPUTER_TRESHHOLD 250
+#define COMPUTER_TRESHHOLD 200
 #define BLINKING_SPEED 250
 
 // ===== PIN DEFINITION =====
@@ -58,6 +59,10 @@ const char* NTP_SERVER = "pool.ntp.org";
 #define RGB_RED 2
 #define RGB_GREEN 3
 #define RGB_BLUE 4
+#define RGB_FIRE 5
+
+#define COOLING  80
+#define SPARKING 170
 
 // ===== PROGRAMM VARIABLES =====
 
@@ -76,6 +81,8 @@ int user_rgb_programm = RGB_OFF;
 char rgb_brightness = 0xFF;
 char last_rgb_brightness = 0xFF;
 bool flushRGB = false;
+
+unsigned long startEpoch = 0;
 
 FspTimer RGBTimer;
 CRGB leds[RGB_COUNT];
@@ -100,6 +107,8 @@ void UpdateMqtt();
 void OnMqttMessage();
 void handlePcCommand(String command);
 void handleRgbCommand(String command);
+void FireAnimation();
+void SerialIncome();
 
 
 void setup() {
@@ -119,17 +128,21 @@ void setup() {
 
   dht.begin();
   BeginRGBTimer(10); //10 Hz
-  FastLED.addLeds<WS2812B, led_pin, GRB>(leds, RGB_COUNT);
+  FastLED.addLeds<WS2812B, led_pin, GRB>(leds, RGB_COUNT).setCorrection(TypicalLEDStrip);
 
   ConnectWifi();
   ConnectMqtt();
   timeClient.begin();
   WDT.begin(5000);
+  startEpoch = timeClient.getEpochTime();
+  timeClient.update();
+
   Serial.println("Finished Setup, starting loop...");
 }
 
 void loop()
 {
+  SerialIncome();
   UpdateRGB();
   UpdateMqtt();
   WDT.refresh();
@@ -263,9 +276,64 @@ void RGBCallback(timer_callback_args_t __attribute((unused)) *p_args)
           flushRGB = true;
         }
         break;
+    case RGB_FIRE:
+      FireAnimation();
+      flushRGB = true;
+      break;
   }
   local_last_rgb_programm=rgb_programm;
   cycle_counter++;
+}
+
+void SerialIncome() {
+  static String application = "";
+  String input="";
+  while (Serial.available()>0) {
+    delayMicroseconds(90);  
+    char c = Serial.read();
+    input += c;
+  }
+  if(input.length()==0)return;
+   if(input.startsWith("dump"))
+  {
+    unsigned long runtime = timeClient.getEpochTime() - startEpoch; // in Sekunden
+    unsigned long hours = runtime / 3600;
+    unsigned long minutes = (runtime % 3600) / 60;
+    unsigned long seconds = runtime % 60;
+    String runtimeStr = String(hours) + ":" +
+                    (minutes < 10 ? "0" : "") + minutes + ":" +
+                    (seconds < 10 ? "0" : "") + seconds;
+    String pc_state = (pc_state)?"ON":"OFF";
+    Serial.println(runtimeStr);
+    Serial.print("Time: ");
+    Serial.println(timeClient.getFormattedTime());
+    Serial.println("IP-Adress: " + WiFi.localIP().toString());
+    Serial.print("Temperature: ");
+    Serial.println(temperature);
+    Serial.print("Humidity: ");
+    Serial.println(humidity);
+    Serial.println("PC State: " + pc_state);
+    Serial.print("PC Raw Value: ");
+    Serial.println(analogRead(pc_state_pin));
+    Serial.print("PC Treshold: ");
+    Serial.println(COMPUTER_TRESHHOLD);
+    Serial.print("RGB Programm: ");
+    Serial.println(rgb_programm);
+  }
+  else if(input.startsWith("help"))
+  {
+    Serial.println("help - list of commands");
+    Serial.println("dump - dump status and sensor data");
+    Serial.println("rgb - start rgb application");
+  }
+  else if(input.startsWith("rgb"))
+  {
+    application = "rgb";
+  }
+  else
+  {
+    Serial.println("Unkown Command. Type 'help' for a list of commands");
+  }
 }
 
 void handlePcCommand(String command) {
@@ -360,6 +428,14 @@ void OnMqttMessage(int messageSize) {
 
 void PublishData() {
 
+  // ===== Collect Data =====
+
+  pc_status = (analogRead(pc_state_pin)>COMPUTER_TRESHHOLD)?true:false;
+  temperature = dht.readTemperature();
+  humidity = dht.readHumidity();
+
+  // ===== Publish Data =====
+
   if (pc_status != last_pc_status) {
     last_pc_status = pc_status;
     mqttClient.beginMessage(TOPIC_PC_STATUS, true, 1); // topic, retained, qos
@@ -375,8 +451,6 @@ void PublishData() {
     mqttClient.endMessage();
   }
 
-  temperature = dht.readTemperature();
-  humidity = dht.readHumidity();
   if (isnan(temperature) || isnan(humidity)) {
     //Failed to read DHT Data, dont publish garbage data
     return;
@@ -433,4 +507,40 @@ void ConnectWifi() {
     WDT.refresh();
   }
   Serial.println("\nConnected! IP-Adress: " + WiFi.localIP().toString());
+}
+
+void FireAnimation()
+{
+  bool fireReverseDirection = false;
+  random16_add_entropy( random16());
+  // Array of temperature readings at each simulation cell
+  static uint8_t heat[RGB_COUNT];
+
+  // Step 1.  Cool down every cell a little
+    for( int i = 0; i < RGB_COUNT; i++) {
+      heat[i] = qsub8( heat[i],  random8(0, ((COOLING * 10) / RGB_COUNT) + 2));
+    }
+  
+    // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+    for( int k= RGB_COUNT - 1; k >= 2; k--) {
+      heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+    }
+    
+    // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
+    if( random8() < SPARKING ) {
+      int y = random8(7);
+      heat[y] = qadd8( heat[y], random8(160,255) );
+    }
+
+    // Step 4.  Map from heat cells to LED colors
+    for( int j = 0; j < RGB_COUNT; j++) {
+      CRGB color = HeatColor( heat[j]);
+      int pixelnumber;
+      if( fireReverseDirection ) {
+        pixelnumber = (RGB_COUNT-1) - j;
+      } else {
+        pixelnumber = j;
+      leds[pixelnumber] = color;
+      }
+    }
 }

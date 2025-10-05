@@ -20,7 +20,6 @@ Requirements:
   - Status Dump
     - IP-Adress
     - Time
-    - MQTT State
     - DHT Data
     - Computer State, RAW Value and Treshhold
     - RGB-Stripe State
