@@ -48,7 +48,7 @@ class StaticColorAnimation: public IAnimation
             color = 0xFFFFFF;
             update_needed=true;
         }
-        void RestartAnimation()
+        void RestartAnimation() override
         {
             fill_solid(leds, rgb_count, color);
             FastLED.setBrightness(brightness);   
@@ -99,7 +99,12 @@ class StaticColorAnimation: public IAnimation
         {
             settings->id = id;
             settings->type = STATIC_COLOR;
-            memcpy(settings->name, name.c_str(), name.length());
+            
+            memset(settings->name, 0, sizeof(settings->name));
+            int len = name.length();
+            if (len > 13) len = 13;
+            memcpy(settings->name, name.c_str(), len);
+
             settings->data[0] = brightness;
             settings->data[1] = (uint8_t)(color & 0xFF);
             settings->data[2] = (uint8_t)((color >> 8) & 0xFF);
@@ -108,13 +113,24 @@ class StaticColorAnimation: public IAnimation
         
         void applyAnimationSetting(AnimationSetting* settings)
         {
+            Serial.println("Einstellungen werden angewandt...");
+            Serial.flush();
+
             id = settings->id;
-            name = String(settings->name);
+            name = String(settings->name, strnlen(settings->name, 13));
             brightness = settings->data[0];
             color = 0;
             color |= settings->data[1];
             color |= (((unsigned long)settings->data[2]) << 8);
             color |= (((unsigned long)settings->data[3]) << 16);
+
+            Serial.println("Einstellungen angewandt:");
+            Serial.print("Color: ");
+            Serial.println(color, HEX);
+            Serial.print("Brightness: ");
+            Serial.println(brightness);
+            Serial.print("Name: ");
+            Serial.println(name);
         }
     
     private:
@@ -212,7 +228,12 @@ class BlinkAnimation: public IAnimation
         {
             settings->id = id;
             settings->type = BLINK;
-            memcpy(settings->name, name.c_str(), name.length());
+
+            memset(settings->name, 0, sizeof(settings->name));
+            int len = name.length();
+            if (len > 13) len = 13;
+            memcpy(settings->name, name.c_str(), len);
+
             settings->data[0] = brightness;
             settings->data[1] = (uint8_t)(color_on & 0xFF);
             settings->data[2] = (uint8_t)((color_on >> 8) & 0xFF);
@@ -225,8 +246,10 @@ class BlinkAnimation: public IAnimation
         
         void applyAnimationSetting(AnimationSetting* settings)
         {
+            Serial.println("Einstellungen werden angewandt...");
+
             id = settings->id;
-            name = String(settings->name);
+            name = String(settings->name, strnlen(settings->name, 13));
             brightness = settings->data[0];
             cycle_ticks = settings->data[7];
             color_on = 0;
@@ -237,6 +260,18 @@ class BlinkAnimation: public IAnimation
             color_off |= settings->data[4];
             color_off |= (((unsigned long)settings->data[5]) << 8);
             color_off |= (((unsigned long)settings->data[6]) << 16);
+
+            Serial.println("Einstellungen angewandt:");
+            Serial.print("Color On: ");
+            Serial.println(color_on, HEX);
+            Serial.print("Color Off: ");
+            Serial.println(color_off, HEX);
+            Serial.print("Cycle Ticks: ");
+            Serial.println(cycle_ticks);
+            Serial.print("Brightness: ");
+            Serial.println(brightness);
+            Serial.print("Name: ");
+            Serial.println(name);
         }
     
     private:
@@ -266,21 +301,38 @@ class AnimationManager
             memset(animations, 0, sizeof(animations));
             animation_count = createAnimationsFromStorage();
         }
-        
+
         ~AnimationManager(){};
 
         int getAnimationIndex(String name)
         {
             int i = 0;
-            while(i < 100 && name != animations[i]->GetName())i++;
+            while(i < 100)
+            {
+                if (animations[i] != nullptr && name == animations[i]->GetName())break;
+                i++;
+            }
+            Serial.print("Nach '");
+            Serial.print(name);
+            Serial.print("'gesucht, i: ");
+            Serial.println(i);
             if(i < 100)return i;
             else return -1;
         }
+
         IAnimation* getAnimation(int index)
         {
             if(index < 0 || index >= 100)return nullptr;
             else return animations[index];
         }
+
+        IAnimation* getAnimationByName(String name)
+        {
+            int id = getAnimationIndex(name);
+            if(id==-1)return nullptr;
+            else return animations[id];
+        }
+        
         int createAnimation(AnimationSetting* settings)
         {
             if(settings == nullptr)return -1;
@@ -299,18 +351,19 @@ class AnimationManager
                 animation = new BlinkAnimation(leds, rgb_count);
             }
             else return -3;
-
-            animations[i]=animation;
             settings->id = i;
+            Serial.println("Neue Animation wird erstellt");
             animation->applyAnimationSetting(settings);
             saveAnimation(settings);
+            Serial.println("Neue Animation wurde erstellt");
+            animations[i]=animation;
             animation_count++;
-            delete settings;
             return i;
         }
 
         void saveAnimation(AnimationSetting* settings)
         {
+            Serial.println("Animation gespeichert");
             _storage.begin("anim_data");
             String key = "a"+ String(settings->id);
             _storage.putBytes(key.c_str(),settings,sizeof(AnimationSetting));
@@ -337,23 +390,26 @@ class AnimationManager
             delete animations[id];
             animations[id]=nullptr;
             animation_count--;
+            Serial.println("Animation wurde geloescht");
         }
 
         int createAnimationsFromStorage()
         {
-            String key;
+            String key = "";
             _storage.begin("anim_data", false);
             for (int i = 0; i < 100; i++)
             {
                 key = "a" + String(i);
-                if(_storage.isKey(key.c_str()))
-                {
-                    AnimationSetting tempSettings;
-                    size_t len = _storage.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
-                    if (len == sizeof(AnimationSetting)) {
-                        createAnimation(&tempSettings);
-                    }
+                AnimationSetting tempSettings;
+                size_t len = _storage.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
+                if (len == sizeof(AnimationSetting)) 
+                {   
+                    Serial.print("Animation ");
+                    Serial.print(i);
+                    Serial.println(" wurde gefunden");
+                    createAnimation(&tempSettings);
                 }
+
             }
             _storage.end();
         }
@@ -385,6 +441,7 @@ class AnimationManager
             settings->data[5] = (uint8_t)((color_off >> 8) & 0xFF);
             settings->data[6] = (uint8_t)((color_off >> 16) & 0xFF);
             settings->data[7] = (uint8_t)cycle_ticks;
+            return settings;
         }
 
         int getAnimationCount()

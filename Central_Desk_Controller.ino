@@ -74,10 +74,10 @@ float last_temperature = 0;
 float humidity = 0;
 float last_humidity = 0;
 
-int rgb_programm = RGB_OFF;
-int last_rgb_programm = RGB_UNKOWN;
+IAnimation* animation = nullptr;
+IAnimation* last_animation = nullptr;
+IAnimation* last_user_animation = nullptr;
 
-int user_rgb_programm = RGB_OFF;
 char rgb_brightness = 0xFF;
 char last_rgb_brightness = 0xFF;
 bool flushRGB = false;
@@ -130,14 +130,32 @@ void setup() {
   attachInterrupt(button_pin, ButtonChange, CHANGE);
 
   dht.begin();
-  BeginRGBTimer(10); //10 Hz
   FastLED.addLeds<WS2812B, led_pin, GRB>(leds, RGB_COUNT).setCorrection(TypicalLEDStrip);
-  animationManager.begin();
 
   //Ensure that Animations that are needed by programm do exsist
-  if(animationManager.getAnimationIndex("OFF")==-1)animationManager.createAnimation(animationManager.createSettingsStaticColor(0,255,"OFF"));
-  if(animationManager.getAnimationIndex("RED")==-1)animationManager.createAnimation(animationManager.createSettingsStaticColor(0xFF0000,255,"RED"));
-  if(animationManager.getAnimationIndex("SWITCH_BLINK")==-1)animationManager.createAnimation(animationManager.createSettingsBlink(0xFF0000,0,8,255,"SWITCH_BLINK"));
+  Serial.println("Setting up animations");
+  animationManager.begin();
+
+   if (animationManager.getAnimationIndex("OFF") == -1) {
+    AnimationSetting* newSettings = animationManager.createSettingsStaticColor(0, 255, "OFF");
+    animationManager.createAnimation(newSettings);
+    delete newSettings;
+  }
+
+  if (animationManager.getAnimationIndex("RED") == -1) {
+    AnimationSetting* newSettings = animationManager.createSettingsStaticColor(0xFF0000, 255, "RED");
+    animationManager.createAnimation(newSettings);
+    delete newSettings;
+  }
+  
+   if (animationManager.getAnimationIndex("SWITCH_BLINK") == -1) {
+    AnimationSetting* newSettings = animationManager.createSettingsBlink(0xFF0000,0,8,255,"SWITCH_BLINK");
+    animationManager.createAnimation(newSettings);
+    delete newSettings;
+  }
+
+  animation = animationManager.getAnimationByName("OFF");
+  Serial.println("Done with animations");
 
   ConnectWifi();
   ConnectMqtt();
@@ -145,6 +163,7 @@ void setup() {
   WDT.begin(5000);
   startEpoch = timeClient.getEpochTime();
   timeClient.update();
+  BeginRGBTimer(10); //10 Hz
 
   Serial.println("Finished Setup, starting loop...");
 }
@@ -190,12 +209,11 @@ void KeyChange()
 {
   if(digitalRead(key_pin))
   {
-    rgb_programm = RGB_RED;
+    animation = animationManager.getAnimationByName("RED");
   }
   else
   {
-    rgb_programm = RGB_OFF;
-    
+    animation = animationManager.getAnimationByName("OFF");
   }
 }
 
@@ -203,11 +221,11 @@ void SwitchChange()
 {
   if(digitalRead(switch_pin))
   {
-    rgb_programm = RGB_SWITCH_BLINK;
+    animation = animationManager.getAnimationByName("SWITCH_BLINK");
   }
   else
   {
-    rgb_programm = (digitalRead(key_pin))?RGB_RED:user_rgb_programm;
+    animation = (digitalRead(key_pin))?animationManager.getAnimationByName("RED"):last_user_animation;
   }
 }
 
@@ -241,56 +259,17 @@ void ButtonChange()
 void RGBCallback(timer_callback_args_t __attribute((unused)) *p_args)
 {
   static unsigned long cycle_counter = 0;
-  static int local_last_rgb_programm = RGB_UNKOWN;
-  switch(rgb_programm)
+  static IAnimation* local_last_animation = nullptr;
+  
+  if(animation==nullptr)return;
+  if(animation!=local_last_animation)
   {
-    case RGB_OFF:
-      if(local_last_rgb_programm!=rgb_programm)
-      {
-        fill_solid(leds, RGB_COUNT, CRGB::Black);
-        flushRGB = true;
-      }
-      break;
-    case RGB_SWITCH_BLINK:
-      if(rgb_programm!=local_last_rgb_programm)cycle_counter=0;
-      if(!((cycle_counter+4)%8))
-      {
-        fill_solid(leds, RGB_COUNT, CRGB::Red);
-        flushRGB = true;
-      }
-      else if(!(cycle_counter%8))
-      {
-        fill_solid(leds, RGB_COUNT, CRGB::Black);
-        flushRGB = true;
-      }
-      break;
-    case RGB_RED:
-      if(local_last_rgb_programm!=rgb_programm)
-        {
-          fill_solid(leds, RGB_COUNT, CRGB::Red);
-          flushRGB = true;
-        }
-        break;
-    case RGB_GREEN:
-      if(local_last_rgb_programm!=rgb_programm)
-        {
-          fill_solid(leds, RGB_COUNT, CRGB::Green);
-          flushRGB = true;
-        }
-        break;
-    case RGB_BLUE:
-      if(local_last_rgb_programm!=rgb_programm)
-        {
-          fill_solid(leds, RGB_COUNT, CRGB::Blue);
-          flushRGB = true;
-        }
-        break;
-    case RGB_FIRE:
-      FireAnimation();
-      flushRGB = true;
-      break;
+    animation->RestartAnimation();
+    flushRGB = true;
   }
-  local_last_rgb_programm=rgb_programm;
+  flushRGB = animation->Update(cycle_counter);
+
+  local_last_animation=animation;
   cycle_counter++;
 }
 
@@ -327,7 +306,8 @@ void SerialIncome() {
     Serial.print("PC Treshold: ");
     Serial.println(COMPUTER_TRESHHOLD);
     Serial.print("RGB Programm: ");
-    Serial.println(rgb_programm);
+    if(animation == nullptr) Serial.println("<nullptr>");
+    else Serial.println(animation->GetName());
   }
   else if(input.startsWith("help"))
   {
@@ -452,11 +432,11 @@ void PublishData() {
     mqttClient.endMessage();
   }
 
-  if(rgb_programm != last_rgb_programm)
+  if(animation != last_animation)
   {
-    last_rgb_programm = rgb_programm;
+    last_animation = animation;
     mqttClient.beginMessage(TOPIC_RGB_STATUS, true, 1); // topic, retained, qos
-    mqttClient.print(rgb_programm);
+    mqttClient.print(animation->GetName());
     mqttClient.endMessage();
   }
 
