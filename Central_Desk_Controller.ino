@@ -1,5 +1,5 @@
-#include "secrets.h"
 #include <Arduino.h>
+#include "secrets.h"
 #include <WDT.h>
 #include <DHT.h>
 #include <FastLED.h>

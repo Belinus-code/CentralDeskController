@@ -1,12 +1,23 @@
+#pragma once
+#include <Preferences.h>
 #include <FastLED.h>
+
+#define RGB_COUNT 211
+#define STATIC_COLOR 1
+#define BLINK 2
+
+typedef struct{
+    uint8_t id;
+    uint8_t type;
+    char name[14];
+    uint8_t data[16];
+}AnimationSettings;
+
 class IAnimation
 {
     public:
-        virtual void ResetAnimation()
-        {
-            return;
-        }
         virtual void ResetSettings() = 0;
+        virtual void RestartAnimation() = 0;
         virtual bool Update(unsigned long tick) = 0; //return true if LEDs needs to be flushed. 
         virtual String GetAvailableSettings()
         {
@@ -14,9 +25,11 @@ class IAnimation
         }
         virtual bool UpdateSetting(int index, unsigned long value)
         {
-            return;
+            return false;
         }
         virtual String GetName() = 0;
+        virtual void getAnimationSettings(AnimationSettings* settings) = 0;
+        virtual void applyAnimationSettings(AnimationSettings* settings) = 0;
         virtual ~IAnimation() {}
 
 };
@@ -24,27 +37,32 @@ class IAnimation
 class StaticColorAnimation: public IAnimation
 {
     public:
-        StaticColorAnimation(String AnimationName, struct CRGB *targetArray, int RGBCount)
+        StaticColorAnimation(String AnimationName, struct CRGB *targetArray, int RGBCount, unsigned long new_color, uint8_t id_)
         {
             name = AnimationName;
             leds = targetArray;
             rgb_count = RGBCount;
-            update_needed=true;
+            color = new_color;
+            id = id_;
         }
         void ResetSettings() override
         {
             brightness = 0xFF;
             color = 0xFFFFFF;
+            update_needed=true;
         }
-
+        void RestartAnimation()
+        {
+            fill_solid(leds, rgb_count, color);
+            FastLED.setBrightness(brightness);   
+        }
         bool Update(unsigned long tick) override
         {
-            if(tick == 0 || update_needed) //tick gets set to zero only if animation(program) got changed
+            if(update_needed) //tick gets set to zero only if animation(program) got changed
             {
-                fill_solid(leds, rgb_count, color);
-                FastLED.setBrightness(brightness);
+                RestartAnimation();
                 update_needed=false;
-                return true
+                return true;
             }
             return false;
         }
@@ -61,7 +79,7 @@ class StaticColorAnimation: public IAnimation
                 
                 case 1:
                     if(value > 0xFF)return false;
-                    brightness = value;
+                    brightness = (uint8_t) value;
                     update_needed = true;
                     break;
                 default:
@@ -72,19 +90,190 @@ class StaticColorAnimation: public IAnimation
 
         String GetAvailableSettings() override
         {
-            return "0: Color\n1:Brightness"
+            return "0: Color\n1:Brightness";
         }
 
         String GetName() override
         {
             return name;
         }
+
+        void getAnimationSettings(AnimationSettings* settings)
+        {
+            settings->id = id;
+            settings->type = STATIC_COLOR;
+            memcpy(settings->name, name.c_str(), name.length());
+            settings->data[0] = brightness;
+            settings->data[1] = (uint8_t)(color & 0xFF);
+            settings->data[2] = (uint8_t)((color >> 8) & 0xFF);
+            settings->data[3] = (uint8_t)((color >> 16) & 0xFF);
+        }
+        
+        void applyAnimationSettings(AnimationSettings* settings)
+        {
+            id = settings->id;
+            name = String(settings->name);
+            brightness = settings->data[0];
+            color = 0;
+            color |= settings->data[1];
+            color |= (((unsigned long)settings->data[2]) << 8);
+            color |= (((unsigned long)settings->data[3]) << 16);
+        }
     
     private:
-        int brightness = 0;
+        uint8_t brightness = 0;
         unsigned long color = 0xFFFFFF;
         String name = "";
         CRGB *leds;
         int rgb_count = 0;
         bool update_needed = false;
+        uint8_t id = 0;
+};
+
+class BlinkAnimation: public IAnimation
+{
+    public:
+        BlinkAnimation(String AnimationName, struct CRGB *targetArray, int RGBCount, unsigned long _color_off, unsigned long _color_on, unsigned int _cycle_ticks, uint8_t id_)
+        {
+            id = id_;
+            name = AnimationName;
+            leds = targetArray;
+            rgb_count = RGBCount;
+            color_off = _color_off;
+            color_on = _color_on;
+            cycle_ticks = _cycle_ticks;
+        }
+        void ResetSettings() override
+        {
+            brightness = 0xFF;
+            color_on = 0xFFFFFF;
+            color_off = 0;
+            cycle_ticks = 10;
+            update_needed=true;
+        }
+        void RestartAnimation()
+        {
+            fill_solid(leds, rgb_count, color_off);
+            FastLED.setBrightness(brightness);   
+        }
+        bool Update(unsigned long tick) override
+        {
+            if(!((tick+int(cycle_ticks/2))%cycle_ticks))
+            {
+                fill_solid(leds, RGB_COUNT, CRGB::Red);
+                return true;
+            }
+            else if(!(tick%cycle_ticks))
+            {
+                fill_solid(leds, RGB_COUNT, CRGB::Black);
+                return true;
+            }
+            return false;
+        }
+
+        bool UpdateSetting(int index, unsigned long value) override
+        {
+            
+            switch(index)
+            {
+                case 0:
+                    if(value > 0xFFFFFF)return false;
+                    color_on = value;
+                    update_needed = true;
+                    break;
+
+                case 1:
+                    if(value > 0xFFFFFF)return false;
+                    color_off = value;
+                    update_needed = true;
+                    break;
+
+                case 2:
+                    if(value > 0xFF)return false;
+                    cycle_ticks = value;
+                    update_needed = true;
+                    break;
+
+                case 3:
+                    if(value > 0xFF)return false;
+                    brightness = value;
+                    update_needed = true;
+                    break;
+                default:
+                    return false;
+            }
+                    
+            return true;
+        }
+
+        String GetAvailableSettings() override
+        {
+            return "0: Color On\n1: Color Off\n2: Cycle duration in ms/100 \n3:Brightness";
+        }
+
+        String GetName() override
+        {
+            return name;
+        }
+
+        void getAnimationSettings(AnimationSettings* settings)
+        {
+            settings->id = id;
+            settings->type = BLINK;
+            memcpy(settings->name, name.c_str(), name.length());
+            settings->data[0] = brightness;
+            settings->data[1] = (uint8_t)(color_on & 0xFF);
+            settings->data[2] = (uint8_t)((color_on >> 8) & 0xFF);
+            settings->data[3] = (uint8_t)((color_on >> 16) & 0xFF);
+            settings->data[4] = (uint8_t)(color_off & 0xFF);
+            settings->data[5] = (uint8_t)((color_off >> 8) & 0xFF);
+            settings->data[6] = (uint8_t)((color_off >> 16) & 0xFF);
+            settings->data[7] = (uint8_t)cycle_ticks;
+        }
+        
+        void applyAnimationSettings(AnimationSettings* settings)
+        {
+            id = settings->id;
+            name = String(settings->name);
+            brightness = settings->data[0];
+            cycle_ticks = settings->data[7];
+            color_on = 0;
+            color_on |= settings->data[1];
+            color_on |= (((unsigned long)settings->data[2]) << 8);
+            color_on |= (((unsigned long)settings->data[3]) << 16);
+            color_off = 0;
+            color_off |= settings->data[4];
+            color_off |= (((unsigned long)settings->data[5]) << 8);
+            color_off |= (((unsigned long)settings->data[6]) << 16);
+        }
+    
+    private:
+        int id = 0;
+        int brightness = 0;
+        unsigned long color_on = 0xFFFFFF;
+        unsigned long color_off = 0;
+        uint8_t cycle_ticks = 10;
+        String name = "";
+        CRGB *leds;
+        int rgb_count = 0;
+        bool update_needed = false;
+};
+
+class AnimationManager
+{
+    public: 
+        int getAnimationIndex(String name)
+        {
+            int i = 0;
+            while(name != animations[i]->GetName() && i < 100)i++;
+            if(i < 100)return i;
+            else return -1;
+        }
+        IAnimation* getAnimation(int index)
+            if(index < 0 || index >= 100)return nullptr;
+            else return animations[index];
+        }
+    
+    private:
+        IAnimation* animations[100];
 };
