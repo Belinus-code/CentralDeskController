@@ -259,10 +259,16 @@ class AnimationManager
             leds = targetArray_;
             rgb_count = RGBCount_;
             _storage = storage;
+        }
+
+        void begin()
+        {
             memset(animations, 0, sizeof(animations));
             animation_count = createAnimationsFromStorage();
         }
+        
         ~AnimationManager(){};
+
         int getAnimationIndex(String name)
         {
             int i = 0;

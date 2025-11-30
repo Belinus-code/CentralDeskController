@@ -87,9 +87,9 @@ unsigned long startEpoch = 0;
 Preferences prefs;
 FspTimer RGBTimer;
 CRGB leds[RGB_COUNT];
-DHT dht(dht_pin, DHTTYPE);
 WiFiClient wifiClient;
 WiFiUDP udp;
+DHT dht(dht_pin, DHTTYPE);
 AnimationManager animationManager(leds, RGB_COUNT, prefs);
 MqttClient mqttClient(wifiClient);
 NTPClient timeClient(udp, NTP_SERVER, NTP_TIME_OFFSET, 60000);
@@ -114,6 +114,7 @@ void SerialIncome();
 
 
 void setup() {
+  
   Serial.begin(115200);
   Serial.println("Setup started");
 
@@ -131,6 +132,12 @@ void setup() {
   dht.begin();
   BeginRGBTimer(10); //10 Hz
   FastLED.addLeds<WS2812B, led_pin, GRB>(leds, RGB_COUNT).setCorrection(TypicalLEDStrip);
+  animationManager.begin();
+
+  //Ensure that Animations that are needed by programm do exsist
+  if(animationManager.getAnimationIndex("OFF")==-1)animationManager.createAnimation(animationManager.createSettingsStaticColor(0,255,"OFF"));
+  if(animationManager.getAnimationIndex("RED")==-1)animationManager.createAnimation(animationManager.createSettingsStaticColor(0xFF0000,255,"RED"));
+  if(animationManager.getAnimationIndex("SWITCH_BLINK")==-1)animationManager.createAnimation(animationManager.createSettingsBlink(0xFF0000,0,8,255,"SWITCH_BLINK"));
 
   ConnectWifi();
   ConnectMqtt();
