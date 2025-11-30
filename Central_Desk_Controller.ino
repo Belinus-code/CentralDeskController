@@ -84,11 +84,13 @@ bool flushRGB = false;
 
 unsigned long startEpoch = 0;
 
+Preferences prefs;
 FspTimer RGBTimer;
 CRGB leds[RGB_COUNT];
 DHT dht(dht_pin, DHTTYPE);
 WiFiClient wifiClient;
 WiFiUDP udp;
+AnimationManager animationManager(leds, RGB_COUNT, prefs);
 MqttClient mqttClient(wifiClient);
 NTPClient timeClient(udp, NTP_SERVER, NTP_TIME_OFFSET, 60000);
 

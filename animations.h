@@ -11,7 +11,7 @@ typedef struct{
     uint8_t type;
     char name[14];
     uint8_t data[16];
-}AnimationSettings;
+}AnimationSetting;
 
 class IAnimation
 {
@@ -28,8 +28,8 @@ class IAnimation
             return false;
         }
         virtual String GetName() = 0;
-        virtual void getAnimationSettings(AnimationSettings* settings) = 0;
-        virtual void applyAnimationSettings(AnimationSettings* settings) = 0;
+        virtual void getAnimationSetting(AnimationSetting* settings) = 0;
+        virtual void applyAnimationSetting(AnimationSetting* settings) = 0;
         virtual ~IAnimation() {}
 
 };
@@ -37,13 +37,10 @@ class IAnimation
 class StaticColorAnimation: public IAnimation
 {
     public:
-        StaticColorAnimation(String AnimationName, struct CRGB *targetArray, int RGBCount, unsigned long new_color, uint8_t id_)
+        StaticColorAnimation(struct CRGB *targetArray, int RGBCount)
         {
-            name = AnimationName;
             leds = targetArray;
             rgb_count = RGBCount;
-            color = new_color;
-            id = id_;
         }
         void ResetSettings() override
         {
@@ -98,7 +95,7 @@ class StaticColorAnimation: public IAnimation
             return name;
         }
 
-        void getAnimationSettings(AnimationSettings* settings)
+        void getAnimationSetting(AnimationSetting* settings)
         {
             settings->id = id;
             settings->type = STATIC_COLOR;
@@ -109,7 +106,7 @@ class StaticColorAnimation: public IAnimation
             settings->data[3] = (uint8_t)((color >> 16) & 0xFF);
         }
         
-        void applyAnimationSettings(AnimationSettings* settings)
+        void applyAnimationSetting(AnimationSetting* settings)
         {
             id = settings->id;
             name = String(settings->name);
@@ -133,15 +130,10 @@ class StaticColorAnimation: public IAnimation
 class BlinkAnimation: public IAnimation
 {
     public:
-        BlinkAnimation(String AnimationName, struct CRGB *targetArray, int RGBCount, unsigned long _color_off, unsigned long _color_on, unsigned int _cycle_ticks, uint8_t id_)
+        BlinkAnimation(struct CRGB *targetArray, int RGBCount)
         {
-            id = id_;
-            name = AnimationName;
             leds = targetArray;
             rgb_count = RGBCount;
-            color_off = _color_off;
-            color_on = _color_on;
-            cycle_ticks = _cycle_ticks;
         }
         void ResetSettings() override
         {
@@ -216,7 +208,7 @@ class BlinkAnimation: public IAnimation
             return name;
         }
 
-        void getAnimationSettings(AnimationSettings* settings)
+        void getAnimationSetting(AnimationSetting* settings)
         {
             settings->id = id;
             settings->type = BLINK;
@@ -231,7 +223,7 @@ class BlinkAnimation: public IAnimation
             settings->data[7] = (uint8_t)cycle_ticks;
         }
         
-        void applyAnimationSettings(AnimationSettings* settings)
+        void applyAnimationSetting(AnimationSetting* settings)
         {
             id = settings->id;
             name = String(settings->name);
@@ -262,18 +254,142 @@ class BlinkAnimation: public IAnimation
 class AnimationManager
 {
     public: 
+        AnimationManager(struct CRGB *targetArray_, int RGBCount_, Preferences& storage)
+        {
+            leds = targetArray_;
+            rgb_count = RGBCount_;
+            _storage = storage;
+            memset(animations, 0, sizeof(animations));
+            animation_count = createAnimationsFromStorage();
+        }
+        ~AnimationManager(){};
         int getAnimationIndex(String name)
         {
             int i = 0;
-            while(name != animations[i]->GetName() && i < 100)i++;
+            while(i < 100 && name != animations[i]->GetName())i++;
             if(i < 100)return i;
             else return -1;
         }
         IAnimation* getAnimation(int index)
+        {
             if(index < 0 || index >= 100)return nullptr;
             else return animations[index];
+        }
+        int createAnimation(AnimationSetting* settings)
+        {
+            if(settings == nullptr)return -1;
+
+            int i = 0;
+            while(i<100&&animations[i]!=nullptr) i++;
+            if (i>=100) return -2;
+
+            IAnimation* animation = nullptr;
+            if(settings->type==STATIC_COLOR)
+            {
+                animation = new StaticColorAnimation(leds, rgb_count);
+            }
+            else if(settings->type==BLINK)
+            {
+                animation = new BlinkAnimation(leds, rgb_count);
+            }
+            else return -3;
+
+            animations[i]=animation;
+            settings->id = i;
+            animation->applyAnimationSetting(settings);
+            saveAnimation(settings);
+            animation_count++;
+            delete settings;
+            return i;
+        }
+
+        void saveAnimation(AnimationSetting* settings)
+        {
+            _storage.begin("anim_data");
+            String key = "a"+ String(settings->id);
+            _storage.putBytes(key.c_str(),settings,sizeof(AnimationSetting));
+            _storage.end();
+        }
+
+        bool saveAnimationIndex(int id)
+        {
+            if(id < 0 || id >= 100)return false;
+            if (animations[id] == nullptr) return false;
+            AnimationSetting settings;
+            animations[id]->getAnimationSetting(&settings);
+            saveAnimation(&settings);
+            return true;
+        }
+
+        void deleteAnimation(int id)
+        {
+            if(id < 0 || id >= 100)return;
+            String key = "a" + String(id);
+            _storage.begin("anim_data", false);
+            _storage.remove(key.c_str()); 
+            _storage.end();
+            delete animations[id];
+            animations[id]=nullptr;
+            animation_count--;
+        }
+
+        int createAnimationsFromStorage()
+        {
+            String key;
+            _storage.begin("anim_data", false);
+            for (int i = 0; i < 100; i++)
+            {
+                key = "a" + String(i);
+                if(_storage.isKey(key.c_str()))
+                {
+                    AnimationSetting tempSettings;
+                    size_t len = _storage.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
+                    if (len == sizeof(AnimationSetting)) {
+                        createAnimation(&tempSettings);
+                    }
+                }
+            }
+            _storage.end();
+        }
+
+        AnimationSetting* createSettingsStaticColor(unsigned long color, uint8_t brightness, String name)
+        {
+            if (name.length()>13)return nullptr;
+            AnimationSetting* settings = new AnimationSetting();
+            settings->type = STATIC_COLOR;
+            memcpy(settings->name, name.c_str(), name.length());
+            settings->data[0] = brightness;
+            settings->data[1] = (uint8_t)(color & 0xFF);
+            settings->data[2] = (uint8_t)((color >> 8) & 0xFF);
+            settings->data[3] = (uint8_t)((color >> 16) & 0xFF);
+            return settings;
+        }
+
+        AnimationSetting* createSettingsBlink(unsigned long color_on, unsigned long color_off, uint8_t cycle_ticks, uint8_t brightness, String name)
+        {
+            if (name.length()>13)return nullptr;
+            AnimationSetting* settings = new AnimationSetting();
+            settings->type = BLINK;
+            memcpy(settings->name, name.c_str(), name.length());
+            settings->data[0] = brightness;
+            settings->data[1] = (uint8_t)(color_on & 0xFF);
+            settings->data[2] = (uint8_t)((color_on >> 8) & 0xFF);
+            settings->data[3] = (uint8_t)((color_on >> 16) & 0xFF);
+            settings->data[4] = (uint8_t)(color_off & 0xFF);
+            settings->data[5] = (uint8_t)((color_off >> 8) & 0xFF);
+            settings->data[6] = (uint8_t)((color_off >> 16) & 0xFF);
+            settings->data[7] = (uint8_t)cycle_ticks;
+        }
+
+        int getAnimationCount()
+        {
+            return animation_count;
         }
     
     private:
         IAnimation* animations[100];
+        CRGB *leds;
+        int rgb_count = 0;
+        Preferences _storage;
+        int animation_count = 0;
 };
