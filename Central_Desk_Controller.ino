@@ -114,7 +114,7 @@ void SerialIncome();
 
 
 void setup() {
-  
+  noInterrupts();
   Serial.begin(115200);
   Serial.println("Setup started");
 
@@ -154,7 +154,7 @@ void setup() {
     delete newSettings;
   }
 
-  animation = animationManager.getAnimationByName("OFF");
+  animation = animationManager.getAnimationByName("RED");
   Serial.println("Done with animations");
 
   ConnectWifi();
@@ -165,6 +165,7 @@ void setup() {
   timeClient.update();
   BeginRGBTimer(10); //10 Hz
 
+  interrupts();
   Serial.println("Finished Setup, starting loop...");
 }
 
@@ -209,11 +210,11 @@ void KeyChange()
 {
   if(digitalRead(key_pin))
   {
-    animation = animationManager.getAnimationByName("RED");
+    animation = animationManager.getAnimation(1);
   }
   else
   {
-    animation = animationManager.getAnimationByName("OFF");
+    animation = animationManager.getAnimation(0);
   }
 }
 

@@ -312,10 +312,7 @@ class AnimationManager
                 if (animations[i] != nullptr && name == animations[i]->GetName())break;
                 i++;
             }
-            Serial.print("Nach '");
-            Serial.print(name);
-            Serial.print("'gesucht, i: ");
-            Serial.println(i);
+            //Serial.println(i);
             if(i < 100)return i;
             else return -1;
         }
@@ -396,6 +393,7 @@ class AnimationManager
         int createAnimationsFromStorage()
         {
             String key = "";
+            int found = 0;
             _storage.begin("anim_data", false);
             for (int i = 0; i < 100; i++)
             {
@@ -408,10 +406,12 @@ class AnimationManager
                     Serial.print(i);
                     Serial.println(" wurde gefunden");
                     createAnimation(&tempSettings);
+                    found++;
                 }
 
             }
             _storage.end();
+            return found;
         }
 
         AnimationSetting* createSettingsStaticColor(unsigned long color, uint8_t brightness, String name)
