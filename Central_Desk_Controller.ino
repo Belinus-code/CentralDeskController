@@ -136,7 +136,7 @@ void setup() {
   Serial.println("Setting up animations");
   animationManager.begin();
 
-   if (animationManager.getAnimationIndex("OFF") == -1) {
+  if (animationManager.getAnimationIndex("OFF") == -1) {
     AnimationSetting* newSettings = animationManager.createSettingsStaticColor(0, 255, "OFF");
     animationManager.createAnimation(newSettings);
     delete newSettings;

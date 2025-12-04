@@ -360,11 +360,14 @@ class AnimationManager
 
         void saveAnimation(AnimationSetting* settings)
         {
-            Serial.println("Animation gespeichert");
+            Serial.println("Animation wird gespeichert...");
             _storage.begin("anim_data");
             String key = "a"+ String(settings->id);
+            Serial.print("Key: ");
+            Serial.println(key);
             _storage.putBytes(key.c_str(),settings,sizeof(AnimationSetting));
             _storage.end();
+            Serial.println("Animation gespeichert");
         }
 
         bool saveAnimationIndex(int id)
@@ -394,11 +397,11 @@ class AnimationManager
         {
             String key = "";
             int found = 0;
-            _storage.begin("anim_data", false);
             for (int i = 0; i < 100; i++)
             {
                 key = "a" + String(i);
                 AnimationSetting tempSettings;
+                _storage.begin("anim_data", false);
                 size_t len = _storage.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
                 if (len == sizeof(AnimationSetting)) 
                 {   
@@ -408,9 +411,8 @@ class AnimationManager
                     createAnimation(&tempSettings);
                     found++;
                 }
-
+                _storage.end();
             }
-            _storage.end();
             return found;
         }
 
