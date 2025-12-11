@@ -48,7 +48,7 @@ unsigned long last_publish = 0;
 
 // ===== NTP DEFINITIONS =====
 
-const long NTP_TIME_OFFSET = 7200;
+const long NTP_TIME_OFFSET = 3600;
 const char* NTP_SERVER = "pool.ntp.org";
 
 // ===== RGB PROGRAMMS =====
@@ -116,6 +116,7 @@ void SerialIncome();
 void setup() {
   noInterrupts();
   Serial.begin(115200);
+  delay(2000);
   Serial.println("Setup started");
 
   pinMode(key_pin, INPUT);
@@ -154,7 +155,7 @@ void setup() {
     delete newSettings;
   }
 
-  animation = animationManager.getAnimationByName("RED");
+  animation = animationManager.getAnimationByName("OFF");
   Serial.println("Done with animations");
 
   ConnectWifi();
@@ -189,6 +190,7 @@ void UpdateRGB()
   {
     flushRGB = false;
     FastLED.show();
+    //Serial.println("Fl");
   }
 }
 
@@ -210,11 +212,11 @@ void KeyChange()
 {
   if(digitalRead(key_pin))
   {
-    animation = animationManager.getAnimation(1);
+    animation = animationManager.getAnimationByName("RED");
   }
   else
   {
-    animation = animationManager.getAnimation(0);
+    animation = animationManager.getAnimationByName("OFF");
   }
 }
 
@@ -283,7 +285,21 @@ void SerialIncome() {
     input += c;
   }
   if(input.length()==0)return;
-   if(input.startsWith("dump"))
+  input.trim();
+  if(input.startsWith("rgb") || application=="rgb")
+  {
+    application = "rgb";
+    if(input == "rgb")
+    {
+      Serial.println("rgb started");
+      return;
+    }
+    else if (input.startsWith("rgb "))input = input.substring(4);
+
+    if(input=="exit")application="";
+    else handleRgbCommand(input);
+  }
+  else if(input.startsWith("dump"))
   {
     unsigned long runtime = timeClient.getEpochTime() - startEpoch; // in Sekunden
     unsigned long hours = runtime / 3600;
@@ -316,10 +332,6 @@ void SerialIncome() {
     Serial.println("dump - dump status and sensor data");
     Serial.println("rgb - start rgb application");
   }
-  else if(input.startsWith("rgb"))
-  {
-    application = "rgb";
-  }
   else
   {
     Serial.println("Unkown Command. Type 'help' for a list of commands");
@@ -349,20 +361,109 @@ void handlePcCommand(String command) {
 }
 
 void handleRgbCommand(String command) {
-  /*
-  Serial.print("Handling RGB command: ");
   Serial.println(command);
-
-  int code = getHexByName(command.c_str());
-  if (code == 0)
+  if(command.startsWith("set"))
   {
-    Serial.print("Ungueltiger Code: ");
-    Serial.println(command);
-    return;
+    if(command=="set")
+    {
+      Serial.println("'set' can be used to set an animation. \nUsage: 'set COLOR'");
+      return;
+    }
+    String color = command.substring(4);
+    int index = animationManager.getAnimationIndex(color);
+    if(index==-1)
+    {
+      Serial.println("Color not found");
+    }
+    else
+    {
+      animation = animationManager.getAnimation(index);
+      Serial.print("Switched to ");
+      Serial.println(color);
+    } 
   }
-  Serial.println("NOT IMPLEMENTED");
-  //IrSender.sendNEC(code, 32);
-  */
+  else if(command.startsWith("new"))
+  {
+    if (command.startsWith("new static "))
+    {
+        command = command.substring(11);
+        int spacePos = command.indexOf(' ');
+        if (spacePos == -1 || spacePos == 0 || spacePos >= command.length() - 1) {
+            Serial.println("Error: Format is 'new static NAME COLOR'");
+            return;
+        }
+        String name = command.substring(0, spacePos);
+        String hex = command.substring(spacePos + 1);
+        uint32_t rgb = (uint32_t)strtoul(hex.c_str(), NULL, 16);
+
+        AnimationSetting* newSettings = animationManager.createSettingsStaticColor(rgb, 255, name);
+        animationManager.createAnimation(newSettings);
+        delete newSettings;
+        Serial.println("New static color created!");
+    }
+    else if (command.startsWith("new blink "))
+    {
+        command = command.substring(10);
+        int firstSpace = command.indexOf(' ');
+        if (firstSpace == -1) {
+            Serial.println("Error: Missing arguments. Usage: 'new blink NAME COLOR_ON COLOR_OFF TICKS'");
+            return;
+        }
+        int secondSpace = command.indexOf(' ', firstSpace + 1);
+        if (secondSpace == -1) {
+            Serial.println("Error: Missing Color Off/Ticks.");
+            return;
+        }
+        int thirdSpace = command.indexOf(' ', secondSpace + 1);
+        if (thirdSpace == -1) {
+            Serial.println("Error: Missing Ticks.");
+            return;
+        }
+
+        String name = command.substring(0, firstSpace);
+        
+        String hexOn = command.substring(firstSpace + 1, secondSpace);
+        uint32_t color_on = (uint32_t)strtoul(hexOn.c_str(), NULL, 16);
+
+        String hexOff = command.substring(secondSpace + 1, thirdSpace);
+        uint32_t color_off = (uint32_t)strtoul(hexOff.c_str(), NULL, 16);
+
+        String ticksStr = command.substring(thirdSpace + 1);
+        uint8_t cycle_ticks = (uint8_t)ticksStr.toInt();
+
+        AnimationSetting* newSettings = animationManager.createSettingsBlink(color_on, color_off, cycle_ticks, 255, name);
+        
+        animationManager.createAnimation(newSettings);
+        delete newSettings;
+        Serial.println("New blink animation created!");
+    }
+    else
+    {
+        Serial.println("'new' can be used to create an animation. \nUsage:\n'new static NAME COLOR'\n'new blink NAME COLOR_ON COLOR_OFF TICKS'");
+        return;
+    }
+  }
+  else if(command == "list")
+  {
+    int amount = animationManager.getAnimationCount();
+    int i = 0;
+    while(i < 100 && amount > 0)
+    {
+      IAnimation* ani = animationManager.getAnimation(i);
+      i++;
+      if(ani == nullptr)return;
+      Serial.println(ani->GetName());
+      amount--;
+    }
+  }
+  else if(command == "help")
+  {
+    Serial.print("help - list of commands\nset - set an Animation\nnew - create new animation\nlist - list all Animations\n");
+  }
+  else
+  {
+    Serial.println("Unkown Command. Type 'help' for a list of commands");
+  }
 }
 
 bool BeginRGBTimer(float rate) {

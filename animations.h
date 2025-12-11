@@ -55,6 +55,9 @@ class StaticColorAnimation: public IAnimation
         }
         bool Update(unsigned long tick) override
         {
+            fill_solid(leds, rgb_count, color);
+            FastLED.setBrightness(brightness); 
+            return true;
             if(update_needed) //tick gets set to zero only if animation(program) got changed
             {
                 RestartAnimation();
@@ -330,7 +333,7 @@ class AnimationManager
             else return animations[id];
         }
         
-        int createAnimation(AnimationSetting* settings)
+        int createAnimation(AnimationSetting* settings, bool save)
         {
             if(settings == nullptr)return -1;
 
@@ -349,25 +352,29 @@ class AnimationManager
             }
             else return -3;
             settings->id = i;
-            Serial.println("Neue Animation wird erstellt");
+            //Serial.println("Neue Animation wird erstellt");
             animation->applyAnimationSetting(settings);
-            saveAnimation(settings);
-            Serial.println("Neue Animation wurde erstellt");
+            if(save)saveAnimation(settings);
+            //Serial.println("Neue Animation wurde erstellt");
             animations[i]=animation;
             animation_count++;
             return i;
         }
 
+        int createAnimation(AnimationSetting* settings)
+        {
+            createAnimation(settings, true);
+        }
         void saveAnimation(AnimationSetting* settings)
         {
-            Serial.println("Animation wird gespeichert...");
-            _storage.begin("anim_data");
+            //Serial.println("Animation wird gespeichert...");
+            //_storage.begin("anim_data");
             String key = "a"+ String(settings->id);
-            Serial.print("Key: ");
-            Serial.println(key);
+            //Serial.print("Key: ");
+            //Serial.println(key);
             _storage.putBytes(key.c_str(),settings,sizeof(AnimationSetting));
             _storage.end();
-            Serial.println("Animation gespeichert");
+            //Serial.println("Animation gespeichert");
         }
 
         bool saveAnimationIndex(int id)
@@ -390,7 +397,7 @@ class AnimationManager
             delete animations[id];
             animations[id]=nullptr;
             animation_count--;
-            Serial.println("Animation wurde geloescht");
+            //Serial.println("Animation wurde geloescht");
         }
 
         int createAnimationsFromStorage()
@@ -405,10 +412,10 @@ class AnimationManager
                 size_t len = _storage.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
                 if (len == sizeof(AnimationSetting)) 
                 {   
-                    Serial.print("Animation ");
-                    Serial.print(i);
-                    Serial.println(" wurde gefunden");
-                    createAnimation(&tempSettings);
+                    //Serial.print("Animation ");
+                    //Serial.print(i);
+                    //Serial.println(" wurde gefunden");
+                    createAnimation(&tempSettings, false);
                     found++;
                 }
                 _storage.end();
