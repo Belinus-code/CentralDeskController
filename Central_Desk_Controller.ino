@@ -154,8 +154,8 @@ void setup() {
     animationManager.createAnimation(newSettings);
     delete newSettings;
   }
-
   animation = animationManager.getAnimationByName("OFF");
+  last_user_animation = animationManager.getAnimationByName("OFF");
   Serial.println("Done with animations");
 
   ConnectWifi();
@@ -190,7 +190,6 @@ void UpdateRGB()
   {
     flushRGB = false;
     FastLED.show();
-    //Serial.println("Fl");
   }
 }
 
@@ -212,11 +211,12 @@ void KeyChange()
 {
   if(digitalRead(key_pin))
   {
+    last_user_animation=animation;
     animation = animationManager.getAnimationByName("RED");
   }
   else
   {
-    animation = animationManager.getAnimationByName("OFF");
+    animation = last_user_animation;
   }
 }
 
@@ -270,7 +270,7 @@ void RGBCallback(timer_callback_args_t __attribute((unused)) *p_args)
     animation->RestartAnimation();
     flushRGB = true;
   }
-  flushRGB = animation->Update(cycle_counter);
+  flushRGB |= animation->Update(cycle_counter);
 
   local_last_animation=animation;
   cycle_counter++;
@@ -377,6 +377,7 @@ void handleRgbCommand(String command) {
     }
     else
     {
+      last_user_animation=animation;
       animation = animationManager.getAnimation(index);
       Serial.print("Switched to ");
       Serial.println(color);
@@ -403,44 +404,94 @@ void handleRgbCommand(String command) {
     }
     else if (command.startsWith("new blink "))
     {
-        command = command.substring(10);
-        int firstSpace = command.indexOf(' ');
-        if (firstSpace == -1) {
-            Serial.println("Error: Missing arguments. Usage: 'new blink NAME COLOR_ON COLOR_OFF TICKS'");
-            return;
-        }
-        int secondSpace = command.indexOf(' ', firstSpace + 1);
-        if (secondSpace == -1) {
-            Serial.println("Error: Missing Color Off/Ticks.");
-            return;
-        }
-        int thirdSpace = command.indexOf(' ', secondSpace + 1);
-        if (thirdSpace == -1) {
-            Serial.println("Error: Missing Ticks.");
-            return;
-        }
+      command = command.substring(10);
+      int firstSpace = command.indexOf(' ');
+      if (firstSpace == -1) {
+          Serial.println("Error: Missing arguments. Usage: 'new blink NAME COLOR_ON COLOR_OFF TICKS'");
+          return;
+      }
+      int secondSpace = command.indexOf(' ', firstSpace + 1);
+      if (secondSpace == -1) {
+          Serial.println("Error: Missing Color Off/Ticks.");
+          return;
+      }
+      int thirdSpace = command.indexOf(' ', secondSpace + 1);
+      if (thirdSpace == -1) {
+          Serial.println("Error: Missing Ticks.");
+          return;
+      }
 
-        String name = command.substring(0, firstSpace);
-        
-        String hexOn = command.substring(firstSpace + 1, secondSpace);
-        uint32_t color_on = (uint32_t)strtoul(hexOn.c_str(), NULL, 16);
+      String name = command.substring(0, firstSpace);
+      
+      String hexOn = command.substring(firstSpace + 1, secondSpace);
+      uint32_t color_on = (uint32_t)strtoul(hexOn.c_str(), NULL, 16);
 
-        String hexOff = command.substring(secondSpace + 1, thirdSpace);
-        uint32_t color_off = (uint32_t)strtoul(hexOff.c_str(), NULL, 16);
+      String hexOff = command.substring(secondSpace + 1, thirdSpace);
+      uint32_t color_off = (uint32_t)strtoul(hexOff.c_str(), NULL, 16);
 
-        String ticksStr = command.substring(thirdSpace + 1);
-        uint8_t cycle_ticks = (uint8_t)ticksStr.toInt();
+      String ticksStr = command.substring(thirdSpace + 1);
+      uint8_t cycle_ticks = (uint8_t)ticksStr.toInt();
 
-        AnimationSetting* newSettings = animationManager.createSettingsBlink(color_on, color_off, cycle_ticks, 255, name);
-        
-        animationManager.createAnimation(newSettings);
-        delete newSettings;
-        Serial.println("New blink animation created!");
+      AnimationSetting* newSettings = animationManager.createSettingsBlink(color_on, color_off, cycle_ticks, 255, name);
+      
+      animationManager.createAnimation(newSettings);
+      delete newSettings;
+      Serial.println("New blink animation created!");
+    }
+    else if (command.startsWith("new fade"))
+    {
+      if(command == "new fade" || command == "new fade help")
+      {
+        Serial.println("'new fade NAME PALETTE SPEED DELTA'\nPalette: 0: Rainbow, 1: Party, 2: Ocean, 3: Forest, 4: Heat, 5: Lava, 6: Matrix\nDelta: Width");
+        return;
+      }
+      command = command.substring(9);
+      int firstSpace = command.indexOf(' ');
+      if (firstSpace == -1) {
+          Serial.println("Error: Missing arguments. Usage: 'new fade NAME PALETTE SPEED DELTA'");
+          return;
+      }
+      int secondSpace = command.indexOf(' ', firstSpace + 1);
+      if (secondSpace == -1) {
+          Serial.println("Error: Missing Speed/Delta.");
+          return;
+      }
+      int thirdSpace = command.indexOf(' ', secondSpace + 1);
+      if (thirdSpace == -1) {
+          Serial.println("Error: Missing Delta.");
+          return;
+      }
+
+      String name = command.substring(0, firstSpace);
+      
+      String paletteStr = command.substring(firstSpace + 1, secondSpace);
+      uint8_t palette = (uint8_t)paletteStr.toInt();
+
+      String speedStr = command.substring(secondSpace + 1, thirdSpace);
+      uint8_t speed = (uint8_t)speedStr.toInt();
+
+      String deltaStr = command.substring(thirdSpace + 1);
+      uint8_t delta = (uint8_t)deltaStr.toInt();
+
+      AnimationSetting* newSettings = animationManager.createSettingsPalette(palette, speed, delta, 255,name);
+      
+      animationManager.createAnimation(newSettings);
+      delete newSettings;
+      Serial.println("New fade animation created!");
     }
     else
     {
-        Serial.println("'new' can be used to create an animation. \nUsage:\n'new static NAME COLOR'\n'new blink NAME COLOR_ON COLOR_OFF TICKS'");
+        Serial.println("'new' can be used to create an animation. \nUsage:\n'new static NAME COLOR'\n'new blink NAME COLOR_ON COLOR_OFF TICKS'\n'new fade NAME PALETTE SPEED DELTA'");
         return;
+    }
+  }
+  else if(command.startsWith("setting"))
+  {
+    int p1 = command.indexOf(" ");
+    if(p1==-1)
+    {
+      Serial.println("Usage:\nsetting set NAME INDEX DATA\nsetting show NAME INDEX\nsetting list NAME");
+      return;
     }
   }
   else if(command == "list")
@@ -456,9 +507,22 @@ void handleRgbCommand(String command) {
       amount--;
     }
   }
+  else if(command == "toggle")
+  {
+    if(animation==animationManager.getAnimationByName("OFF"))
+    {
+      if(last_user_animation==nullptr || last_user_animation == animationManager.getAnimationByName("OFF"))animation=animationManager.getAnimationByName("WHITE");
+      else animation = last_user_animation;
+    }
+    else
+    {
+      last_user_animation=animation;
+      animation=animationManager.getAnimationByName("OFF");
+    }
+  }
   else if(command == "help")
   {
-    Serial.print("help - list of commands\nset - set an Animation\nnew - create new animation\nlist - list all Animations\n");
+    Serial.print("help - list of commands\nset - set an Animation\nnew - create new animation\nlist - list all Animations\ntoggle - Turn light on/off\n");
   }
   else
   {
