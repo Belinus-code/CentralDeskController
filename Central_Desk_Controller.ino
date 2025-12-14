@@ -362,7 +362,7 @@ void handlePcCommand(String command) {
 
 void handleRgbCommand(String command) {
   Serial.println(command);
-  if(command.startsWith("set"))
+  if(command.startsWith("set") && !command.startsWith("setting"))
   {
     if(command=="set")
     {
@@ -487,11 +487,111 @@ void handleRgbCommand(String command) {
   }
   else if(command.startsWith("setting"))
   {
-    int p1 = command.indexOf(" ");
-    if(p1==-1)
-    {
+    String params = command.substring(7);
+    params.trim();
+
+    // Suche nach dem ersten Leerzeichen (Trennung Befehl / Name)
+    int firstSpace = params.indexOf(' ');
+    
+    // Falls kein Parameter da ist
+    if (params.length() == -1) {
       Serial.println("Usage:\nsetting set NAME INDEX DATA\nsetting show NAME INDEX\nsetting list NAME");
       return;
+    }
+    
+    // Unterbefehl extrahieren (list, show, set)
+    // Wenn kein Leerzeichen, ist der ganze String der Befehl (z.B. "list" fehlt der Name -> Fehlerabfang später)
+    String subCommand = (firstSpace == -1) ? params : params.substring(0, firstSpace);
+    
+    // Rest des Strings (Argumente nach dem Unterbefehl)
+    String args = (firstSpace == -1) ? "" : params.substring(firstSpace + 1);
+    args.trim();
+
+    if (subCommand == "list")
+    {
+      // Syntax: setting list NAME
+      if(args.length() == 0) {
+        Serial.println("Error: Missing Name. Usage: setting list NAME");
+        return;
+      }
+      
+      String animName = args;
+      IAnimation* anim = animationManager.getAnimationByName(animName);
+      
+      if (anim != nullptr) {
+        Serial.println("Available Settings for " + animName + ":");
+        Serial.println(anim->GetAvailableSettings());
+      } else {
+        Serial.println("Animation '" + animName + "' not found.");
+      }
+    }
+    else if (subCommand == "show")
+    {
+       // Syntax: setting show NAME INDEX
+       int nameSpace = args.indexOf(' ');
+       if (nameSpace == -1) {
+         Serial.println("Error: Missing Index. Usage: setting show NAME INDEX");
+         return;
+       }
+       
+       String animName = args.substring(0, nameSpace);
+       String indexStr = args.substring(nameSpace + 1);
+       int index = indexStr.toInt();
+
+       IAnimation* anim = animationManager.getAnimationByName(animName);
+       if (anim != nullptr) {
+         int value = anim->GetSetting(index);
+         Serial.print("Setting ");
+         Serial.print(index);
+         Serial.print(" is: ");
+         Serial.print(value);
+         Serial.print(" (Hex: 0x");
+         Serial.print(value, HEX);
+         Serial.println(")");
+       } else {
+         Serial.println("Animation '" + animName + "' not found.");
+       }
+    }
+    else if (subCommand == "set")
+    {
+      // Syntax: setting set NAME INDEX DATA
+      int nameSpace = args.indexOf(' ');
+      if (nameSpace == -1) {
+        Serial.println("Error: Missing Index/Data. Usage: setting set NAME INDEX DATA");
+        return;
+      }
+      
+      String animName = args.substring(0, nameSpace);
+      String rest = args.substring(nameSpace + 1);
+      
+      int indexSpace = rest.indexOf(' ');
+      if (indexSpace == -1) {
+        Serial.println("Error: Missing Data. Usage: setting set NAME INDEX DATA");
+        return;
+      }
+      
+      int index = rest.substring(0, indexSpace).toInt();
+      String dataStr = rest.substring(indexSpace + 1);
+      
+      unsigned long value = strtoul(dataStr.c_str(), NULL, 0);
+
+      IAnimation* anim = animationManager.getAnimationByName(animName);
+      if (anim != nullptr) {
+        if(anim->UpdateSetting(index, value)) {
+          Serial.println("Setting updated.");
+          int id = animationManager.getAnimationIndex(animName);
+          animationManager.saveAnimationIndex(id);
+          Serial.println("Saved to storage.");
+        } else {
+          Serial.println("Failed to update setting. Invalid Index or Value?");
+        }
+      } else {
+        Serial.println("Animation '" + animName + "' not found.");
+      }
+    }
+    else
+    {
+      Serial.println("Unknown command. Usage:\nsetting set NAME INDEX DATA\nsetting show NAME INDEX\nsetting list NAME");
     }
   }
   else if(command == "list")

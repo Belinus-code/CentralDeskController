@@ -91,15 +91,9 @@ class StaticColorAnimation: public IAnimation
         {
             switch(index)
             {
-                case 0:
-                    return color;
-                    break;
-                
-                case 1:
-                    return brightness;
-                    break;
-                default:
-                    return -1;
+                case 0: return color;
+                case 1: return brightness;
+                default: return -1;
             }
         }
 
@@ -225,23 +219,11 @@ class BlinkAnimation: public IAnimation
         {
             switch(index)
             {
-                case 0:
-                    return color_on;
-                    break;
-
-                case 1:
-                    return color_off;
-                    break;
-
-                case 2:
-                    return cycle_ticks;
-                    break;
-
-                case 3:
-                    return brightness;
-                    break;
-                default:
-                    return -1;
+                case 0: return color_on;
+                case 1: return color_off;
+                case 2: return cycle_ticks;
+                case 3: return brightness;
+                default: return -1;
             }
         }
 
@@ -391,6 +373,18 @@ public:
                 return false;
         }
         return true;
+    }
+
+    int GetSetting(int index) override
+    {
+        switch(index)
+        {
+            case 0: return paletteID;
+            case 1: return speed;
+            case 2: return delta;
+            case 3: return brightness;
+            default: return -1;
+        }
     }
 
     String GetAvailableSettings() override
