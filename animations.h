@@ -5,6 +5,7 @@
 #define RGB_COUNT 211
 #define STATIC_COLOR 1
 #define BLINK 2
+#define PALETTE 3
 
 typedef struct{
     uint8_t id;
@@ -27,6 +28,7 @@ class IAnimation
         {
             return false;
         }
+        virtual int GetSetting(int index) = 0;
         virtual String GetName() = 0;
         virtual void getAnimationSetting(AnimationSetting* settings) = 0;
         virtual void applyAnimationSetting(AnimationSetting* settings) = 0;
@@ -48,7 +50,7 @@ class StaticColorAnimation: public IAnimation
             color = 0xFFFFFF;
             update_needed=true;
         }
-        void RestartAnimation()
+        void RestartAnimation() override
         {
             fill_solid(leds, rgb_count, color);
             FastLED.setBrightness(brightness);   
@@ -85,6 +87,16 @@ class StaticColorAnimation: public IAnimation
             return true;
         }
 
+        int GetSetting(int index)
+        {
+            switch(index)
+            {
+                case 0: return color;
+                case 1: return brightness;
+                default: return -1;
+            }
+        }
+
         String GetAvailableSettings() override
         {
             return "0: Color\n1:Brightness";
@@ -99,7 +111,12 @@ class StaticColorAnimation: public IAnimation
         {
             settings->id = id;
             settings->type = STATIC_COLOR;
-            memcpy(settings->name, name.c_str(), name.length());
+            
+            memset(settings->name, 0, sizeof(settings->name));
+            int len = name.length();
+            if (len > 13) len = 13;
+            memcpy(settings->name, name.c_str(), len);
+
             settings->data[0] = brightness;
             settings->data[1] = (uint8_t)(color & 0xFF);
             settings->data[2] = (uint8_t)((color >> 8) & 0xFF);
@@ -109,7 +126,7 @@ class StaticColorAnimation: public IAnimation
         void applyAnimationSetting(AnimationSetting* settings)
         {
             id = settings->id;
-            name = String(settings->name);
+            name = String(settings->name, strnlen(settings->name, 13));
             brightness = settings->data[0];
             color = 0;
             color |= settings->data[1];
@@ -198,6 +215,18 @@ class BlinkAnimation: public IAnimation
             return true;
         }
 
+        int GetSetting(int index)
+        {
+            switch(index)
+            {
+                case 0: return color_on;
+                case 1: return color_off;
+                case 2: return cycle_ticks;
+                case 3: return brightness;
+                default: return -1;
+            }
+        }
+
         String GetAvailableSettings() override
         {
             return "0: Color On\n1: Color Off\n2: Cycle duration in ms/100 \n3:Brightness";
@@ -212,7 +241,12 @@ class BlinkAnimation: public IAnimation
         {
             settings->id = id;
             settings->type = BLINK;
-            memcpy(settings->name, name.c_str(), name.length());
+
+            memset(settings->name, 0, sizeof(settings->name));
+            int len = name.length();
+            if (len > 13) len = 13;
+            memcpy(settings->name, name.c_str(), len);
+
             settings->data[0] = brightness;
             settings->data[1] = (uint8_t)(color_on & 0xFF);
             settings->data[2] = (uint8_t)((color_on >> 8) & 0xFF);
@@ -226,7 +260,7 @@ class BlinkAnimation: public IAnimation
         void applyAnimationSetting(AnimationSetting* settings)
         {
             id = settings->id;
-            name = String(settings->name);
+            name = String(settings->name, strnlen(settings->name, 13));
             brightness = settings->data[0];
             cycle_ticks = settings->data[7];
             color_on = 0;
@@ -251,6 +285,165 @@ class BlinkAnimation: public IAnimation
         bool update_needed = false;
 };
 
+class PaletteAnimation : public IAnimation
+{
+public:
+    PaletteAnimation(struct CRGB *targetArray, int RGBCount)
+    {
+        leds = targetArray;
+        rgb_count = RGBCount;
+        currentPalette = RainbowColors_p; // Standard
+    }
+
+    void ResetSettings() override
+    {
+        brightness = 255;
+        speed = 10;
+        delta = 3;         // Wie "breit" die Farben gestreckt sind
+        paletteID = 0;     // 0 = Rainbow
+        update_needed = true;
+    }
+
+    void RestartAnimation() override
+    {
+        FastLED.setBrightness(brightness);
+        ChangePalette(paletteID);
+    }
+
+    bool Update(unsigned long tick) override
+    {
+        // Wir multiplizieren erst (für die Geschwindigkeit) und teilen dann (für die Verlangsamung).
+        // ">> 2" ist das Gleiche wie "geteilt durch 4" (2 hoch 2).
+        // Das bedeutet: Bei Speed 1 ändert sich die Farbe nur alle 4 Ticks (also alle 0,4 Sekunden bei 10Hz).
+        
+        uint8_t colorIndex = (uint8_t)((tick * speed) >> 2);
+        
+        // Optimierte Version: Einmal Farbe holen, ganzen Streifen füllen
+        CRGB color = ColorFromPalette(currentPalette, colorIndex, 255, LINEARBLEND);
+        fill_solid(leds, rgb_count, color);
+
+        if(FastLED.getBrightness() != brightness) {
+            FastLED.setBrightness(brightness);
+        }
+        
+        return true;
+    }
+
+    // Hilfsfunktion zum Wechseln der Palette
+    void ChangePalette(uint8_t id)
+    {
+        paletteID = id;
+        switch(id)
+        {
+            case 0: currentPalette = RainbowColors_p; break;
+            case 1: currentPalette = PartyColors_p; break;
+            case 2: currentPalette = OceanColors_p; break;     // Blau/Weiß/Türkis
+            case 3: currentPalette = ForestColors_p; break;    // Grün/Braun
+            case 4: currentPalette = HeatColors_p; break;      // Rot/Gelb/Weiß (Feuer)
+            case 5: currentPalette = LavaColors_p; break;      // Rot/Schwarz/Orange
+            // Eigene Palette (Beispiel: Matrix grün)
+            case 6: 
+                currentPalette = CRGBPalette16(CRGB::Black, CRGB::Green, CRGB::Black, CRGB::DarkGreen);
+                break;
+            default: currentPalette = RainbowColors_p; break;
+        }
+    }
+
+    bool UpdateSetting(int index, unsigned long value) override
+    {
+        switch(index)
+        {
+            case 0: // Palette ID
+                if(value > 255) return false;
+                ChangePalette((uint8_t)value);
+                break;
+            case 1: // Speed
+                if(value > 255) return false;
+                speed = (uint8_t)value;
+                break;
+            case 2: // Delta (Streckung)
+                if(value > 255) return false;
+                delta = (uint8_t)value;
+                break;
+            case 3: // Brightness
+                if(value > 255) return false;
+                brightness = (uint8_t)value;
+                break;
+            default:
+                return false;
+        }
+        return true;
+    }
+
+    int GetSetting(int index) override
+    {
+        switch(index)
+        {
+            case 0: return paletteID;
+            case 1: return speed;
+            case 2: return delta;
+            case 3: return brightness;
+            default: return -1;
+        }
+    }
+
+    String GetAvailableSettings() override
+    {
+        return "0: Palette ID (0=Rainbow, 1=Party, 2=Ocean, 3=Forest, 4=Heat, 5=Lava, 6=Matrix)\n1: Speed\n2: Delta\n3: Brightness";
+    }
+
+    String GetName() override
+    {
+        return name;
+    }
+
+    void getAnimationSetting(AnimationSetting* settings) override
+    {
+        settings->id = id;
+        settings->type = PALETTE;
+
+        memset(settings->name, 0, sizeof(settings->name));
+        int len = name.length();
+        if (len > 13) len = 13;
+        memcpy(settings->name, name.c_str(), len);
+
+        settings->data[0] = brightness;
+        settings->data[1] = paletteID;
+        settings->data[2] = speed;
+        settings->data[3] = delta;
+    }
+
+    void applyAnimationSetting(AnimationSetting* settings) override
+    {
+        id = settings->id;
+        name = String(settings->name, strnlen(settings->name, 13));
+        
+        brightness = settings->data[0];
+        uint8_t newPalID = settings->data[1];
+        speed = settings->data[2];
+        delta = settings->data[3];
+        
+        if(speed == 0) speed = 1;
+        ChangePalette(newPalID);
+    }
+
+private:
+    uint8_t id = 0;
+    String name = "";
+    CRGB *leds;
+    int rgb_count;
+    
+    CRGBPalette16 currentPalette;
+    
+    // Parameter
+    uint8_t brightness;
+    uint8_t paletteID;
+    uint8_t speed;
+    uint8_t delta;
+    
+    bool update_needed = false;
+};
+
 class AnimationManager
 {
     public: 
@@ -259,23 +452,43 @@ class AnimationManager
             leds = targetArray_;
             rgb_count = RGBCount_;
             _storage = storage;
-            //memset(animations, 0, sizeof(animations));
-            //animation_count = createAnimationsFromStorage();
         }
+
+        void begin()
+        {
+            memset(animations, 0, sizeof(animations));
+            animation_count = createAnimationsFromStorage();
+        }
+
         ~AnimationManager(){};
+
         int getAnimationIndex(String name)
         {
             int i = 0;
-            while(i < 100 && name != animations[i]->GetName())i++;
+            while(i < 100)
+            {
+                if (animations[i] != nullptr && name == animations[i]->GetName())break;
+                i++;
+            }
+            //Serial.println(i);
             if(i < 100)return i;
             else return -1;
         }
+
         IAnimation* getAnimation(int index)
         {
             if(index < 0 || index >= 100)return nullptr;
             else return animations[index];
         }
-        int createAnimation(AnimationSetting* settings)
+
+        IAnimation* getAnimationByName(String name)
+        {
+            int id = getAnimationIndex(name);
+            if(id==-1)return nullptr;
+            else return animations[id];
+        }
+        
+        int createAnimation(AnimationSetting* settings, bool save)
         {
             if(settings == nullptr)return -1;
 
@@ -292,17 +505,23 @@ class AnimationManager
             {
                 animation = new BlinkAnimation(leds, rgb_count);
             }
+            else if(settings->type == PALETTE)
+            {
+                animation = new PaletteAnimation(leds, rgb_count);
+            }
             else return -3;
-
-            animations[i]=animation;
             settings->id = i;
             animation->applyAnimationSetting(settings);
-            saveAnimation(settings);
+            if(save)saveAnimation(settings);
+            animations[i]=animation;
             animation_count++;
-            delete settings;
             return i;
         }
 
+        int createAnimation(AnimationSetting* settings)
+        {
+            createAnimation(settings, true);
+        }
         void saveAnimation(AnimationSetting* settings)
         {
             _storage.begin("anim_data");
@@ -335,21 +554,22 @@ class AnimationManager
 
         int createAnimationsFromStorage()
         {
-            String key;
-            _storage.begin("anim_data", false);
+            String key = "";
+            int found = 0;
             for (int i = 0; i < 100; i++)
             {
                 key = "a" + String(i);
-                if(_storage.isKey(key.c_str()))
-                {
-                    AnimationSetting tempSettings;
-                    size_t len = _storage.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
-                    if (len == sizeof(AnimationSetting)) {
-                        createAnimation(&tempSettings);
-                    }
+                AnimationSetting tempSettings;
+                _storage.begin("anim_data", false);
+                size_t len = _storage.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
+                if (len == sizeof(AnimationSetting)) 
+                {   
+                    createAnimation(&tempSettings, false);
+                    found++;
                 }
+                _storage.end();
             }
-            _storage.end();
+            return found;
         }
 
         AnimationSetting* createSettingsStaticColor(unsigned long color, uint8_t brightness, String name)
@@ -379,6 +599,22 @@ class AnimationManager
             settings->data[5] = (uint8_t)((color_off >> 8) & 0xFF);
             settings->data[6] = (uint8_t)((color_off >> 16) & 0xFF);
             settings->data[7] = (uint8_t)cycle_ticks;
+            return settings;
+        }
+
+        AnimationSetting* createSettingsPalette(uint8_t paletteID, uint8_t speed, uint8_t delta, uint8_t brightness, String name)
+        {
+            if (name.length() > 13) return nullptr;
+            
+            AnimationSetting* settings = new AnimationSetting();
+            settings->type = PALETTE;
+            memset(settings->name, 0, sizeof(settings->name));
+            memcpy(settings->name, name.c_str(), name.length());
+            settings->data[0] = brightness;
+            settings->data[1] = paletteID;
+            settings->data[2] = speed;
+            settings->data[3] = delta;
+            return settings;
         }
 
         int getAnimationCount()
