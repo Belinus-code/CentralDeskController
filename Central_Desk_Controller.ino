@@ -79,8 +79,8 @@ IAnimation* priority_animation = nullptr;
 IAnimation* last_user_animation = nullptr;
 IAnimation* user_animation = nullptr;
 
-char rgb_brightness = 0xFF;
-char last_rgb_brightness = 0xFF;
+int rgb_brightness = 0xFF;
+int last_rgb_brightness = 0xFF;
 bool flushRGB = false;
 
 unsigned long startEpoch = 0;
@@ -179,6 +179,8 @@ void loop() {
 
 void UpdateRGB() {
   if (rgb_brightness != last_rgb_brightness) {
+    if(rgb_brightness<0)rgb_brightness=0;
+    else if(rgb_brightness>255)rgb_brightness=255;
     FastLED.setBrightness(rgb_brightness);
     last_rgb_brightness = rgb_brightness;
     flushRGB = true;
@@ -566,8 +568,22 @@ void handleRgbCommand(String command) {
       Serial.print("Deletet Animation ");
       Serial.println(color);
     }
-  } else if (command == "help") {
-    Serial.print("help - list of commands\nset - set an Animation\nnew - create new animation\nlist - list all Animations\ntoggle - Turn light on/off\n");
+  } else if(command.startsWith("brightness")){
+    if(command=="brightness")
+    {
+      Serial.println("Change global brightness: brightness UP/DOWN | brightness +/- | brightness MIN/MAX");
+    }
+    else if(command.indexOf("UP")>-1)rgb_brightness+=10;
+    else if(command.indexOf("DOWN")>-1)rgb_brightness-=10;
+    else if(command.indexOf("+")>-1)rgb_brightness+=10;
+    else if(command.indexOf("-")>-1)rgb_brightness-=10;
+    else if(command.indexOf("MIN")>-1)rgb_brightness=10;
+    else if(command.indexOf("MAX")>-1)rgb_brightness=255;
+    else Serial.println("Unkown command. Usage: brightness UP/DOWN | brightness +/- | brightness MIN/MAX");
+    
+  }
+  else if (command == "help") {
+    Serial.print("help - list of commands\nset - set an Animation\nnew - create new animation\nlist - list all Animations\ntoggle - Turn light on/off\nsettings - change setting of Animation\ndelete - delete Animation\n");
   } else {
     Serial.println("Unkown Command. Type 'help' for a list of commands");
   }
