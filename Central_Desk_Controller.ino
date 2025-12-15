@@ -224,24 +224,19 @@ void ButtonChange() {
     if (digitalRead(button_pin)) digitalWrite(relay_pin, HIGH);
     else digitalWrite(relay_pin, LOW);
   }
-  /*
   else
   {
     if(digitalRead(button_pin))
     {
-      if(rgb_programm!=RGB_OFF)
-      {
-        user_rgb_programm = rgb_programm;
-        rgb_programm = RGB_OFF;
-      }
-      else
-      {
-        if(user_rgb_programm==RGB_OFF)user_rgb_programm=RGB_BLUE;
-        rgb_programm = user_rgb_programm;
-      }
+      if (user_animation == animationManager.getAnimationByName("OFF")) {
+      if (last_user_animation == nullptr || last_user_animation == animationManager.getAnimationByName("OFF")) user_animation = animationManager.getAnimationByName("WHITE");
+      else user_animation = last_user_animation;
+    } else {
+      last_user_animation = user_animation;
+      user_animation = animationManager.getAnimationByName("OFF");
+    }
     }
   }
-  */
 }
 
 void RGBCallback(timer_callback_args_t __attribute((unused)) * p_args) {
