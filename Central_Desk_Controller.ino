@@ -211,8 +211,10 @@ void KeyChange()
 {
   if(digitalRead(key_pin))
   {
+    noInterrupts();
     last_user_animation=animation;
     animation = animationManager.getAnimationByName("RED");
+    interrupts();
   }
   else
   {
@@ -228,7 +230,9 @@ void SwitchChange()
   }
   else
   {
+    noInterrupts();
     animation = (digitalRead(key_pin))?animationManager.getAnimationByName("RED"):last_user_animation;
+    interrupts();
   }
 }
 
@@ -264,6 +268,7 @@ void RGBCallback(timer_callback_args_t __attribute((unused)) *p_args)
   static unsigned long cycle_counter = 0;
   static IAnimation* local_last_animation = nullptr;
   
+  noInterrupts();
   if(animation==nullptr)return;
   if(animation!=local_last_animation)
   {
@@ -274,6 +279,7 @@ void RGBCallback(timer_callback_args_t __attribute((unused)) *p_args)
 
   local_last_animation=animation;
   cycle_counter++;
+  interrupts();
 }
 
 void SerialIncome() {
@@ -366,14 +372,14 @@ void handleRgbCommand(String command) {
   {
     if(command=="set")
     {
-      Serial.println("'set' can be used to set an animation. \nUsage: 'set COLOR'");
+      Serial.println("'set' can be used to set an animation. \nUsage: 'set ANIMATION'");
       return;
     }
     String color = command.substring(4);
     int index = animationManager.getAnimationIndex(color);
     if(index==-1)
     {
-      Serial.println("Color not found");
+      Serial.println("ANIMATION not found");
     }
     else
     {
@@ -619,6 +625,27 @@ void handleRgbCommand(String command) {
       last_user_animation=animation;
       animation=animationManager.getAnimationByName("OFF");
     }
+  }
+  else if(command.startsWith("delete"))
+  {
+    if(command=="delete")
+    {
+      Serial.println("'delete' can be used to delete an animation. \nUsage: 'delete ANIMATION'");
+      return;
+    }
+    String color = command.substring(7);
+    int index = animationManager.getAnimationIndex(color);
+    if(index==-1)
+    {
+      Serial.println("Animation not found");
+    }
+    else
+    {
+      if(animation == animationManager.getAnimation(index))animation=animationManager.getAnimationByName("OFF");
+      animationManager.deleteAnimation(index);
+      Serial.print("Deletet Animation ");
+      Serial.println(color);
+    } 
   }
   else if(command == "help")
   {
