@@ -61,12 +61,8 @@ unsigned long startEpoch = 0;
 Preferences prefs;
 FspTimer RGBTimer;
 CRGB leds[RGB_COUNT];
-WiFiClient wifiClient;
-WiFiUDP udp;
 DHT dht(dht_pin, DHTTYPE);
 AnimationManager animationManager(leds, RGB_COUNT, prefs);
-MqttClient mqttClient(wifiClient);
-NTPClient timeClient(udp, NTP_SERVER, NTP_TIME_OFFSET, 60000);
 
 // ===== METHOD-DEFINITION =====
 
