@@ -11,6 +11,7 @@
 #include <RTClib.h>
 #include <NTPClient.h>
 #include <MqttClient.h>
+#include <IRremote.hpp>
 
 // ===== PROGRAM DEFINES =====
 
@@ -28,6 +29,7 @@ const int relay_pin = 9;
 const int pc_state_pin = A0;
 const int led_pin = 11;
 const int dht_pin = 7;
+const int IR_SEND_PIN = A1;
 
 // ===== MQTT DEFINITIONS =====
 
@@ -42,6 +44,7 @@ const char TOPIC_PC_CMD[] = "linus/haydn17/kellerzimmer/pc/command";
 const char TOPIC_PC_STATUS[] = "linus/haydn17/kellerzimmer/pc/status";
 const char TOPIC_RGB_CMD[] = "linus/haydn17/kellerzimmer/rgb/command";
 const char TOPIC_RGB_STATUS[] = "linus/haydn17/kellerzimmer/rgb/status";
+const char TOPIC_AC_CMD[] = "linus/haydn17/kellerzimmer/ac/command";
 
 const long publish_interval = 1000;
 unsigned long last_publish = 0;
@@ -110,6 +113,7 @@ void UpdateMqtt();
 void OnMqttMessage();
 void handlePcCommand(String command);
 void handleRgbCommand(String command);
+void handleAcCommand(String command);
 void FireAnimation();
 void SerialIncome();
 
@@ -130,6 +134,8 @@ void setup() {
   attachInterrupt(key_pin, KeyChange, CHANGE);
   attachInterrupt(switch_pin, SwitchChange, CHANGE);
   attachInterrupt(button_pin, ButtonChange, CHANGE);
+
+  IrSender.begin(IR_SEND_PIN);
 
   dht.begin();
   FastLED.addLeds<WS2812B, led_pin, GRB>(leds, RGB_COUNT).setCorrection(TypicalLEDStrip);
@@ -319,6 +325,21 @@ void handlePcCommand(String command) {
     Serial.print("Unknown PC command: ");
     Serial.println(command);
   }
+}
+
+void handleAcCommand(String command)
+{
+  Serial.println(command);
+  if(command == "ON/OFF")IrSender.sendNECRaw(0xFF00E710, 0);
+  else if(command == "COOL")IrSender.sendNECRaw(0xEB14E710, 0);
+  else if(command == "DRY")IrSender.sendNECRaw(0xF30CE710, 0);
+  else if(command == "FAN")IrSender.sendNECRaw(0xF708E710, 0);
+  else if(command == "SLEEP")IrSender.sendNECRaw(0xFA05E710, 0);
+  else if(command == "UP")IrSender.sendNECRaw(0xEA15E710, 0);
+  else if(command == "DOWN")IrSender.sendNECRaw(0xF20DE710, 0);
+  else if(command == "HIGH")IrSender.sendNECRaw(0xE916E710, 0);
+  else if(command == "LOW")IrSender.sendNECRaw(0xF50AE710, 0);
+  Serial.println(command);
 }
 
 void handleRgbCommand(String command) {
@@ -633,6 +654,10 @@ void OnMqttMessage(int messageSize) {
   if (topic == TOPIC_RGB_CMD) {
     handleRgbCommand(payload);
   }
+
+  if(topic == TOPIC_AC_CMD) {
+    handleAcCommand(payload);
+  }
 }
 
 void PublishData() {
@@ -699,6 +724,7 @@ void ConnectMqtt() {
 
   mqttClient.subscribe(TOPIC_PC_CMD, 2);
   mqttClient.subscribe(TOPIC_RGB_CMD, 2);
+  mqttClient.subscribe(TOPIC_AC_CMD, 2);
 }
 
 void ConnectWifi() {
