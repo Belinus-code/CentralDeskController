@@ -28,8 +28,13 @@ const int button_pin = 2;
 const int relay_pin = 9;
 const int pc_state_pin = A0;
 const int led_pin = 11;
-const int dht_pin = 7;
+const int dht_pin = 8;            // Incase-DHT
 const int IR_SEND_PIN = A1;
+
+const int dht_power_pin = 4;
+const int dht1_pin = 7;           // DHT AC 1
+const int dht2_pin = 6;           // DHT AC 2
+const int water_sensor_pin = A2;
 
 // ===== MQTT DEFINITIONS =====
 
@@ -38,13 +43,19 @@ int port = BROKER_HOST_PORT;
 const char mqtt_user[] = BROKER_USER;
 const char mqtt_pass[] = BROKER_PASSWORD;
 
-const char TOPIC_TEMP[] = "linus/haydn17/kellerzimmer/temperature";
-const char TOPIC_PC_HUMIDITY[] = "linus/haydn17/kellerzimmer/humidity";
-const char TOPIC_PC_CMD[] = "linus/haydn17/kellerzimmer/pc/command";
-const char TOPIC_PC_STATUS[] = "linus/haydn17/kellerzimmer/pc/status";
-const char TOPIC_RGB_CMD[] = "linus/haydn17/kellerzimmer/rgb/command";
-const char TOPIC_RGB_STATUS[] = "linus/haydn17/kellerzimmer/rgb/status";
-const char TOPIC_AC_CMD[] = "linus/haydn17/kellerzimmer/ac/command";
+const char TOPIC_TEMP[] = "linus/sundgau74/desk/temperature";
+const char TOPIC_HUMIDITY[] = "linus/sundgau74/desk/humidity";
+const char TOPIC_AC_TEMP1[] = "linus/sundgau74/ac/temperature_before";
+const char TOPIC_AC_TEMP2[] = "linus/sundgau74/ac/temperature_after";
+const char TOPIC_AC_HUMID1[] = "linus/sundgau74/ac/humidity_before";
+const char TOPIC_AC_HUMID2[] = "linus/sundgau74/ac/humidity_after";
+const char TOPIC_PC_CMD[] = "linus/sundgau74/pc/command";
+const char TOPIC_PC_STATUS[] = "linus/sundgau74/pc/status";
+const char TOPIC_RGB_CMD[] = "linus/sundgau74/desk_rgb/command";
+const char TOPIC_RGB_STATUS[] = "linus/sundgau74/desk_rgb/status";
+const char TOPIC_RGB_STATUS_DIG[] = "linus/sundgau74/desk_rgb/status_dig";
+const char TOPIC_AC_CMD[] = "linus/sundgau74/ac/command";
+const char TOPIC_AC_WATER[] = "linus/sundgau74/ac/water_full";
 
 const long publish_interval = 1000;
 unsigned long last_publish = 0;
@@ -70,12 +81,17 @@ const char* NTP_SERVER = "pool.ntp.org";
 // ===== PROGRAMM VARIABLES =====
 
 bool pc_status = false;
-bool last_pc_status = false;
 
 float temperature = 0;
-float last_temperature = 0;
 float humidity = 0;
-float last_humidity = 0;
+
+float temperature_ac1 = 0;
+float temperature_ac2 = 0;
+float humidity_ac1 = 0;
+float humidity_ac2 = 0;
+int ac_water_level = 1024;
+bool ac_water_full = false;
+bool lock_ac_toggle = false;          // If locked, programm cant automatically toggle ac. Resets on user toggle.
 
 IAnimation* active_animation = nullptr;
 IAnimation* priority_animation = nullptr;
@@ -94,6 +110,8 @@ CRGB leds[RGB_COUNT];
 WiFiClient wifiClient;
 WiFiUDP udp;
 DHT dht(dht_pin, DHTTYPE);
+DHT dht_ac1(dht1_pin, DHTTYPE);
+DHT dht_ac2(dht2_pin, DHTTYPE);
 AnimationManager animationManager(leds, RGB_COUNT, prefs);
 MqttClient mqttClient(wifiClient);
 NTPClient timeClient(udp, NTP_SERVER, NTP_TIME_OFFSET, 60000);
@@ -116,6 +134,7 @@ void handleRgbCommand(String command);
 void handleAcCommand(String command);
 void FireAnimation();
 void SerialIncome();
+void CheckAC();
 
 
 void setup() {
@@ -129,6 +148,10 @@ void setup() {
   pinMode(button_pin, INPUT);
   pinMode(pc_state_pin, INPUT);
   pinMode(relay_pin, OUTPUT);
+  pinMode(water_sensor_pin, OUTPUT);
+  digitalWrite(water_sensor_pin, LOW);
+  pinMode(dht_power_pin, OUTPUT);
+  digitalWrite(dht_power_pin, HIGH);
 
 
   attachInterrupt(key_pin, KeyChange, CHANGE);
@@ -138,6 +161,8 @@ void setup() {
   IrSender.begin(IR_SEND_PIN);
 
   dht.begin();
+  dht_ac1.begin();
+  dht_ac2.begin();
   FastLED.addLeds<WS2812B, led_pin, GRB>(leds, RGB_COUNT).setCorrection(TypicalLEDStrip);
 
   //Ensure that Animations that are needed by programm do exsist
@@ -263,6 +288,70 @@ void RGBCallback(timer_callback_args_t __attribute((unused)) * p_args) {
   interrupts();
 }
 
+void CheckAC()
+{
+  static unsigned long last_check = 0;
+  static bool is_reset = false;
+  static int error_counter = 0;
+  static int last_overflow = false;
+
+  if(!is_reset)
+  {
+    temperature_ac2 = dht_ac2.readTemperature();
+    humidity_ac2 = dht_ac2.readHumidity();
+    if(isnan(temperature_ac2))error_counter++;
+
+    temperature_ac1 = dht_ac1.readTemperature();
+    humidity_ac1 = dht_ac1.readHumidity();
+    if(isnan(temperature_ac1))error_counter++;
+  }
+  pinMode(water_sensor_pin, INPUT_PULLUP);
+  delay(2);
+  ac_water_level = analogRead(water_sensor_pin);
+  pinMode(water_sensor_pin, OUTPUT);
+  digitalWrite(water_sensor_pin, LOW);
+
+  ac_water_full = ac_water_level < 500;
+
+  if (ac_water_full == 1 && !isnan(temperature_ac2) && !isnan(temperature_ac1) && temperature_ac1 - temperature_ac2 > 3) {
+    priority_animation = animationManager.getAnimationByName("SWITCH_BLINK");
+  } else {
+    priority_animation = (digitalRead(key_pin)) ? animationManager.getAnimationByName("RED") : nullptr;
+  }
+
+  if(millis() - last_check > 10000)
+  {
+    last_check = millis();
+    if(is_reset)
+    {
+      is_reset = false;
+      error_counter = 0;
+      digitalWrite(dht_power_pin, HIGH);
+    }
+    else if(error_counter >= 10)
+    {
+      error_counter = 0;
+      is_reset = true;
+      digitalWrite(dht_power_pin, LOW);
+      pinMode(dht1_pin, OUTPUT);
+      digitalWrite(dht1_pin, LOW);
+      pinMode(dht2_pin, OUTPUT);
+      digitalWrite(dht2_pin, LOW);
+      Serial.println("DHT Sensor Reset");
+    }
+
+    if(last_overflow && ac_water_full)
+    {
+      if(!lock_ac_toggle && !isnan(temperature_ac2) && !isnan(temperature_ac1) && temperature_ac1 - temperature_ac2 > 3)
+      {
+        lock_ac_toggle = true;                // Prevent second toggle
+        IrSender.sendNECRaw(0xFF00E710, 0);   // Toggle AC
+      }
+    }
+    last_overflow = ac_water_full;
+  }
+}
+
 void SerialIncome() {
   String input = "";
   while (Serial.available() > 0) {
@@ -299,6 +388,16 @@ void SerialIncome() {
     Serial.print("RGB Programm: ");
     if (active_animation == nullptr) Serial.println("<nullptr>");
     else Serial.println(active_animation->GetName());
+    Serial.print("AC1 Temperature: ");
+    Serial.println(temperature_ac1);
+    Serial.print("AC2 Temperature: ");
+    Serial.println(temperature_ac2);
+    Serial.print("AC1 Humidity ");
+    Serial.println(humidity_ac1);
+    Serial.print("AC2 Humidity: ");
+    Serial.println(humidity_ac2);
+    Serial.print("AC Water Level:");
+    Serial.println(ac_water_level);
   } else if (input.startsWith("help")) {
     Serial.println("help - list of commands");
     Serial.println("dump - dump status and sensor data");
@@ -340,6 +439,11 @@ void handleAcCommand(String command)
   else if(command == "HIGH")IrSender.sendNECRaw(0xE916E710, 0);
   else if(command == "LOW")IrSender.sendNECRaw(0xF50AE710, 0);
   Serial.println(command);
+
+  if(command == "ON/OFF")
+  {
+    lock_ac_toggle = false;
+  }
 }
 
 void handleRgbCommand(String command) {
@@ -662,6 +766,16 @@ void OnMqttMessage(int messageSize) {
 
 void PublishData() {
   static IAnimation* local_last_animation = nullptr;
+  static float last_temperature = 0;
+  static float last_humidity = 0;
+  static bool last_pc_status = false;
+  static float last_ac1_temperature = 0;
+  static float last_ac2_temperature = 0;
+  static float last_ac1_humidity = 0;
+  static float last_ac2_humidity = 0;
+  static bool last_water_full = false;
+  static int counter = 0;
+  bool force = counter >= 20;
 
   // ===== Collect Data =====
 
@@ -669,40 +783,80 @@ void PublishData() {
   temperature = dht.readTemperature();
   humidity = dht.readHumidity();
 
+  CheckAC();
+
   // ===== Publish Data =====
 
-  if (pc_status != last_pc_status) {
+  if (pc_status != last_pc_status || force) {
     last_pc_status = pc_status;
     mqttClient.beginMessage(TOPIC_PC_STATUS, true, 1);  // topic, retained, qos
     mqttClient.print(pc_status);
     mqttClient.endMessage();
   }
 
-  if (user_animation != local_last_animation) {
+  if (user_animation != local_last_animation || force) {
     local_last_animation = user_animation;
     mqttClient.beginMessage(TOPIC_RGB_STATUS, true, 1);  // topic, retained, qos
     mqttClient.print(user_animation->GetName());
     mqttClient.endMessage();
+
+    mqttClient.beginMessage(TOPIC_RGB_STATUS_DIG, true, 1);  // topic, retained, qos
+    mqttClient.print(user_animation->GetName() == "OFF"? "0" : "1");
+    mqttClient.endMessage();
   }
 
-  if (isnan(temperature) || isnan(humidity)) {
-    //Failed to read DHT Data, dont publish garbage data
-    return;
-  }
-
-  if (temperature != last_temperature) {
+  if (temperature != last_temperature && !isnan(temperature)) {
     last_temperature = temperature;
     mqttClient.beginMessage(TOPIC_TEMP, false, 0);  // topic, retained, qos
     mqttClient.print(temperature);
     mqttClient.endMessage();
   }
 
-  if (abs(humidity - last_humidity) != 0) {
+  if (humidity - last_humidity != 0 && !isnan(humidity)) {
     last_humidity = humidity;
-    mqttClient.beginMessage(TOPIC_PC_HUMIDITY, false, 0);
+    mqttClient.beginMessage(TOPIC_HUMIDITY, false, 0);
     mqttClient.print(humidity);
     mqttClient.endMessage();
   }
+
+  if (temperature_ac1 - last_ac1_temperature != 0 && !isnan(temperature_ac1)) {
+    last_ac1_temperature = temperature_ac1;
+    mqttClient.beginMessage(TOPIC_AC_TEMP1, false, 0);
+    mqttClient.print(temperature_ac1);
+    mqttClient.endMessage();
+  }
+
+  if (temperature_ac2 - last_ac2_temperature != 0 && !isnan(temperature_ac2)) {
+    last_ac2_temperature = temperature_ac2;
+    mqttClient.beginMessage(TOPIC_AC_TEMP2, false, 0);
+    mqttClient.print(temperature_ac2);
+    mqttClient.endMessage();
+  }
+
+  if (humidity_ac1 - last_ac1_humidity != 0 && !isnan(humidity_ac1)) {
+    last_ac1_humidity = humidity_ac1;
+    mqttClient.beginMessage(TOPIC_AC_HUMID1, false, 0);
+    mqttClient.print(humidity_ac1);
+    mqttClient.endMessage();
+  }
+
+  if (humidity_ac2 - last_ac2_humidity != 0 && !isnan(humidity_ac2)) {
+    last_ac2_humidity = humidity_ac2;
+    mqttClient.beginMessage(TOPIC_AC_HUMID2, false, 0);
+    mqttClient.print(humidity_ac2);
+    mqttClient.endMessage();
+  }
+
+  if (ac_water_full != last_water_full || force)
+  {
+    last_water_full = ac_water_full;
+    mqttClient.beginMessage(TOPIC_AC_WATER, true, 1);
+    mqttClient.print(ac_water_full);
+    mqttClient.endMessage();
+  }
+
+  if(force)counter = 0;
+  else counter++;
 }
 
 void ConnectMqtt() {

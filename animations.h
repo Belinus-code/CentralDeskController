@@ -337,13 +337,23 @@ public:
         {
             case 0: currentPalette = RainbowColors_p; break;
             case 1: currentPalette = PartyColors_p; break;
-            case 2: currentPalette = OceanColors_p; break;     // Blau/Weiß/Türkis
-            case 3: currentPalette = ForestColors_p; break;    // Grün/Braun
-            case 4: currentPalette = HeatColors_p; break;      // Rot/Gelb/Weiß (Feuer)
-            case 5: currentPalette = LavaColors_p; break;      // Rot/Schwarz/Orange
-            // Eigene Palette (Beispiel: Matrix grün)
+            case 2: currentPalette = OceanColors_p; break;     
+            case 3: currentPalette = ForestColors_p; break;    
+            case 4: currentPalette = HeatColors_p; break;      
+            case 5: currentPalette = LavaColors_p; break;      
             case 6: 
                 currentPalette = CRGBPalette16(CRGB::Black, CRGB::Green, CRGB::Black, CRGB::DarkGreen);
+                break;
+            case 7: 
+                // Germany Flag Palette
+                // Using CRGB(12, 12, 12) as "Off-Black" to prevent dead LED spots
+                // Looping back to Red at the end for a smooth continuous animation
+                currentPalette = CRGBPalette16(
+                    CRGB(12, 12, 12),  // Black (Dark Anthracite)
+                    CRGB::Red,         // Red
+                    CRGB::Gold,        // Gold
+                    CRGB::Red          // Red (Transition back to Black)
+                );
                 break;
             default: currentPalette = RainbowColors_p; break;
         }
