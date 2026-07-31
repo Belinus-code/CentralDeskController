@@ -52,8 +52,6 @@ WiFiClient wifiClient;
 WiFiUDP udp;
 
 AnimationManager animationManager(leds, RGB_COUNT, prefs);
-MqttClient mqttClient(wifiClient);
-NTPClient timeClient(udp, NTP_SERVER, NTP_TIME_OFFSET, 60000);
 
 // ===== METHOD-DEFINITION =====
 
