@@ -1,79 +1,18 @@
 #include <Arduino.h>
 #include "secrets.h"
+#include "config.h"
 #include <WDT.h>
-#include <DHT.h>
 #include <FastLED.h>
 #include "animations.h"
-#include "FspTimer.h"
+#include <FspTimer.h>
 #include <WiFiS3.h>
 #include <WiFiUdp.h>
 #include <Time.h>
 #include <RTClib.h>
 #include <NTPClient.h>
 #include <MqttClient.h>
-#include <IRremote.hpp>
-
-// ===== PROGRAM DEFINES =====
-
-#define DHTTYPE DHT22
-#define RGB_COUNT 211
-#define COMPUTER_TRESHHOLD 200
-#define BLINKING_SPEED 250
-
-// ===== PIN DEFINITION =====
-
-const int key_pin = 12;
-const int switch_pin = 3;
-const int button_pin = 2;
-const int relay_pin = 9;
-const int pc_state_pin = A0;
-const int led_pin = 11;
-const int dht_pin = 8;            // Incase-DHT
-const int IR_SEND_PIN = A1;
-
-const int dht_power_pin = 4;
-const int dht1_pin = 7;           // DHT AC 1
-const int dht2_pin = 6;           // DHT AC 2
-const int water_sensor_pin = A2;
-
-// ===== MQTT DEFINITIONS =====
-
-const char broker[] = BROKER_HOST_ADRESS;
-int port = BROKER_HOST_PORT;
-const char mqtt_user[] = BROKER_USER;
-const char mqtt_pass[] = BROKER_PASSWORD;
-
-const char TOPIC_TEMP[] = "linus/sundgau74/desk/temperature";
-const char TOPIC_HUMIDITY[] = "linus/sundgau74/desk/humidity";
-const char TOPIC_AC_TEMP1[] = "linus/sundgau74/ac/temperature_before";
-const char TOPIC_AC_TEMP2[] = "linus/sundgau74/ac/temperature_after";
-const char TOPIC_AC_HUMID1[] = "linus/sundgau74/ac/humidity_before";
-const char TOPIC_AC_HUMID2[] = "linus/sundgau74/ac/humidity_after";
-const char TOPIC_PC_CMD[] = "linus/sundgau74/pc/command";
-const char TOPIC_PC_STATUS[] = "linus/sundgau74/pc/status";
-const char TOPIC_RGB_CMD[] = "linus/sundgau74/desk_rgb/command";
-const char TOPIC_RGB_STATUS[] = "linus/sundgau74/desk_rgb/status";
-const char TOPIC_RGB_STATUS_DIG[] = "linus/sundgau74/desk_rgb/status_dig";
-const char TOPIC_AC_CMD[] = "linus/sundgau74/ac/command";
-const char TOPIC_AC_WATER[] = "linus/sundgau74/ac/water_full";
-
-const long publish_interval = 1000;
-unsigned long last_publish = 0;
-
-// ===== NTP DEFINITIONS =====
-
-const long NTP_TIME_OFFSET = 3600;
-const char* NTP_SERVER = "pool.ntp.org";
 
 // ===== RGB PROGRAMMS =====
-
-#define RGB_UNKOWN -1
-#define RGB_OFF 0
-#define RGB_SWITCH_BLINK 1
-#define RGB_RED 2
-#define RGB_GREEN 3
-#define RGB_BLUE 4
-#define RGB_FIRE 5
 
 #define COOLING 80
 #define SPARKING 170
@@ -91,16 +30,18 @@ float humidity_ac1 = 0;
 float humidity_ac2 = 0;
 int ac_water_level = 1024;
 bool ac_water_full = false;
-bool lock_ac_toggle = false;          // If locked, programm cant automatically toggle ac. Resets on user toggle.
+bool lock_ac_toggle = false; // If locked, programm cant automatically toggle ac. Resets on user toggle.
 
-IAnimation* active_animation = nullptr;
-IAnimation* priority_animation = nullptr;
-IAnimation* last_user_animation = nullptr;
-IAnimation* user_animation = nullptr;
+IAnimation *active_animation = nullptr;
+IAnimation *priority_animation = nullptr;
+IAnimation *last_user_animation = nullptr;
+IAnimation *user_animation = nullptr;
 
 int rgb_brightness = 0xFF;
 int last_rgb_brightness = 0xFF;
 bool flushRGB = false;
+
+unsigned long last_publish = 0;
 
 unsigned long startEpoch = 0;
 
@@ -109,9 +50,7 @@ FspTimer RGBTimer;
 CRGB leds[RGB_COUNT];
 WiFiClient wifiClient;
 WiFiUDP udp;
-DHT dht(dht_pin, DHTTYPE);
-DHT dht_ac1(dht1_pin, DHTTYPE);
-DHT dht_ac2(dht2_pin, DHTTYPE);
+
 AnimationManager animationManager(leds, RGB_COUNT, prefs);
 MqttClient mqttClient(wifiClient);
 NTPClient timeClient(udp, NTP_SERVER, NTP_TIME_OFFSET, 60000);
@@ -136,53 +75,43 @@ void FireAnimation();
 void SerialIncome();
 void CheckAC();
 
-
-void setup() {
+void setup()
+{
   noInterrupts();
   Serial.begin(115200);
   delay(2000);
   Serial.println("Setup started");
 
-  pinMode(key_pin, INPUT);
-  pinMode(switch_pin, INPUT);
-  pinMode(button_pin, INPUT);
-  pinMode(pc_state_pin, INPUT);
-  pinMode(relay_pin, OUTPUT);
-  pinMode(water_sensor_pin, OUTPUT);
   digitalWrite(water_sensor_pin, LOW);
-  pinMode(dht_power_pin, OUTPUT);
   digitalWrite(dht_power_pin, HIGH);
-
 
   attachInterrupt(key_pin, KeyChange, CHANGE);
   attachInterrupt(switch_pin, SwitchChange, CHANGE);
   attachInterrupt(button_pin, ButtonChange, CHANGE);
 
-  IrSender.begin(IR_SEND_PIN);
-
-  dht.begin();
-  dht_ac1.begin();
-  dht_ac2.begin();
   FastLED.addLeds<WS2812B, led_pin, GRB>(leds, RGB_COUNT).setCorrection(TypicalLEDStrip);
 
-  //Ensure that Animations that are needed by programm do exsist
+  // Ensure that Animations that are needed by programm do exsist
   Serial.println("Setting up animations");
   animationManager.begin();
 
-  if (animationManager.getAnimationIndex("OFF") == -1) {
-    AnimationSetting* newSettings = animationManager.createSettingsStaticColor(0, 255, "OFF");
+  if (animationManager.getAnimationIndex("OFF") == -1)
+  {
+    AnimationSetting *newSettings = animationManager.createSettingsStaticColor(0, 255, "OFF");
     animationManager.createAnimation(newSettings);
     delete newSettings;
   }
 
-  if (animationManager.getAnimationIndex("RED") == -1) {
-    AnimationSetting* newSettings = animationManager.createSettingsStaticColor(0xFF0000, 255, "RED");
+  if (animationManager.getAnimationIndex("RED") == -1)
+  {
+    AnimationSetting *newSettings = animationManager.createSettingsStaticColor(0xFF0000, 255, "RED");
     animationManager.createAnimation(newSettings);
     delete newSettings;
   }
 
-  if (animationManager.getAnimationIndex("SWITCH_BLINK") == -1) {
-    AnimationSetting* newSettings = animationManager.createSettingsBlink(0xFF0000, 0, 8, 255, "SWITCH_BLINK");
+  if (animationManager.getAnimationIndex("SWITCH_BLINK") == -1)
+  {
+    AnimationSetting *newSettings = animationManager.createSettingsBlink(0xFF0000, 0, 8, 255, "SWITCH_BLINK");
     animationManager.createAnimation(newSettings);
     delete newSettings;
   }
@@ -195,89 +124,118 @@ void setup() {
   WDT.begin(5000);
   startEpoch = timeClient.getEpochTime();
   timeClient.update();
-  BeginRGBTimer(10);  //10 Hz
+  BeginRGBTimer(10); // 10 Hz
 
   interrupts();
   Serial.println("Finished Setup, starting loop...");
 }
 
-void loop() {
+void loop()
+{
   SerialIncome();
   UpdateRGB();
   UpdateMqtt();
   WDT.refresh();
 }
 
-void UpdateRGB() {
-  if (rgb_brightness != last_rgb_brightness) {
-    if(rgb_brightness<0)rgb_brightness=0;
-    else if(rgb_brightness>255)rgb_brightness=255;
+void UpdateRGB()
+{
+  if (rgb_brightness != last_rgb_brightness)
+  {
+    if (rgb_brightness < 0)
+      rgb_brightness = 0;
+    else if (rgb_brightness > 255)
+      rgb_brightness = 255;
     FastLED.setBrightness(rgb_brightness);
     last_rgb_brightness = rgb_brightness;
     flushRGB = true;
   }
-  if (flushRGB) {
+  if (flushRGB)
+  {
     flushRGB = false;
     FastLED.show();
   }
 }
 
-void UpdateMqtt() {
-  if (!mqttClient.connected()) {
+void UpdateMqtt()
+{
+  if (!mqttClient.connected())
+  {
     Serial.println("MQTT Connection lost. Reconnect.");
     ConnectMqtt();
   }
   mqttClient.poll();
-  if (millis() - last_publish > publish_interval) {
+  if (millis() - last_publish > publish_interval)
+  {
     last_publish = millis();
     PublishData();
   }
 }
 
-void KeyChange() {
-  if (digitalRead(key_pin)) {
+void KeyChange()
+{
+  if (digitalRead(key_pin))
+  {
     priority_animation = animationManager.getAnimationByName("RED");
-  } else {
+  }
+  else
+  {
     priority_animation = nullptr;
   }
 }
 
-void SwitchChange() {
-  if (digitalRead(switch_pin)) {
+void SwitchChange()
+{
+  if (digitalRead(switch_pin))
+  {
     priority_animation = animationManager.getAnimationByName("SWITCH_BLINK");
-  } else {
+  }
+  else
+  {
     priority_animation = (digitalRead(key_pin)) ? animationManager.getAnimationByName("RED") : nullptr;
   }
 }
 
-void ButtonChange() {
-  if (digitalRead(switch_pin)) {
-    if (digitalRead(button_pin)) digitalWrite(relay_pin, HIGH);
-    else digitalWrite(relay_pin, LOW);
+void ButtonChange()
+{
+  if (digitalRead(switch_pin))
+  {
+    if (digitalRead(button_pin))
+      digitalWrite(relay_pin, HIGH);
+    else
+      digitalWrite(relay_pin, LOW);
   }
   else
   {
-    if(digitalRead(button_pin))
+    if (digitalRead(button_pin))
     {
-      if (user_animation == animationManager.getAnimationByName("OFF")) {
-      if (last_user_animation == nullptr || last_user_animation == animationManager.getAnimationByName("OFF")) user_animation = animationManager.getAnimationByName("WHITE");
-      else user_animation = last_user_animation;
-    } else {
-      last_user_animation = user_animation;
-      user_animation = animationManager.getAnimationByName("OFF");
-    }
+      if (user_animation == animationManager.getAnimationByName("OFF"))
+      {
+        if (last_user_animation == nullptr || last_user_animation == animationManager.getAnimationByName("OFF"))
+          user_animation = animationManager.getAnimationByName("WHITE");
+        else
+          user_animation = last_user_animation;
+      }
+      else
+      {
+        last_user_animation = user_animation;
+        user_animation = animationManager.getAnimationByName("OFF");
+      }
     }
   }
 }
 
-void RGBCallback(timer_callback_args_t __attribute((unused)) * p_args) {
+void RGBCallback(timer_callback_args_t __attribute((unused)) * p_args)
+{
   static unsigned long cycle_counter = 0;
-  static IAnimation* local_last_animation = nullptr;
+  static IAnimation *local_last_animation = nullptr;
 
   noInterrupts();
   CheckAnimation();
-  if (active_animation == nullptr) return;
-  if (active_animation != local_last_animation) {
+  if (active_animation == nullptr)
+    return;
+  if (active_animation != local_last_animation)
+  {
     active_animation->RestartAnimation();
     flushRGB = true;
   }
@@ -295,15 +253,17 @@ void CheckAC()
   static int error_counter = 0;
   static int last_overflow = false;
 
-  if(!is_reset)
+  if (!is_reset)
   {
     temperature_ac2 = dht_ac2.readTemperature();
     humidity_ac2 = dht_ac2.readHumidity();
-    if(isnan(temperature_ac2))error_counter++;
+    if (isnan(temperature_ac2))
+      error_counter++;
 
     temperature_ac1 = dht_ac1.readTemperature();
     humidity_ac1 = dht_ac1.readHumidity();
-    if(isnan(temperature_ac1))error_counter++;
+    if (isnan(temperature_ac1))
+      error_counter++;
   }
   pinMode(water_sensor_pin, INPUT_PULLUP);
   delay(2);
@@ -313,22 +273,25 @@ void CheckAC()
 
   ac_water_full = ac_water_level < 500;
 
-  if (ac_water_full == 1 && !isnan(temperature_ac2) && !isnan(temperature_ac1) && temperature_ac1 - temperature_ac2 > 3) {
+  if (ac_water_full == 1 && !isnan(temperature_ac2) && !isnan(temperature_ac1) && temperature_ac1 - temperature_ac2 > 3)
+  {
     priority_animation = animationManager.getAnimationByName("SWITCH_BLINK");
-  } else {
+  }
+  else
+  {
     priority_animation = (digitalRead(key_pin)) ? animationManager.getAnimationByName("RED") : nullptr;
   }
 
-  if(millis() - last_check > 10000)
+  if (millis() - last_check > 10000)
   {
     last_check = millis();
-    if(is_reset)
+    if (is_reset)
     {
       is_reset = false;
       error_counter = 0;
       digitalWrite(dht_power_pin, HIGH);
     }
-    else if(error_counter >= 10)
+    else if (error_counter >= 10)
     {
       error_counter = 0;
       is_reset = true;
@@ -340,33 +303,41 @@ void CheckAC()
       Serial.println("DHT Sensor Reset");
     }
 
-    if(last_overflow && ac_water_full)
+    if (last_overflow && ac_water_full)
     {
-      if(!lock_ac_toggle && !isnan(temperature_ac2) && !isnan(temperature_ac1) && temperature_ac1 - temperature_ac2 > 3)
+      if (!lock_ac_toggle && !isnan(temperature_ac2) && !isnan(temperature_ac1) && temperature_ac1 - temperature_ac2 > 3)
       {
-        lock_ac_toggle = true;                // Prevent second toggle
-        IrSender.sendNECRaw(0xFF00E710, 0);   // Toggle AC
+        lock_ac_toggle = true;              // Prevent second toggle
+        IrSender.sendNECRaw(0xFF00E710, 0); // Toggle AC
       }
     }
     last_overflow = ac_water_full;
   }
 }
 
-void SerialIncome() {
+void SerialIncome()
+{
   String input = "";
-  while (Serial.available() > 0) {
+  while (Serial.available() > 0)
+  {
     delayMicroseconds(90);
     char c = Serial.read();
     input += c;
   }
-  if (input.length() == 0) return;
+  if (input.length() == 0)
+    return;
   input.trim();
-  if (input.startsWith("rgb")) {
-    if (input == "rgb") input = "";
-    else if (input.startsWith("rgb ")) input = input.substring(4);
+  if (input.startsWith("rgb"))
+  {
+    if (input == "rgb")
+      input = "";
+    else if (input.startsWith("rgb "))
+      input = input.substring(4);
     handleRgbCommand(input);
-  } else if (input.startsWith("dump")) {
-    unsigned long runtime = timeClient.getEpochTime() - startEpoch;  // in Sekunden
+  }
+  else if (input.startsWith("dump"))
+  {
+    unsigned long runtime = timeClient.getEpochTime() - startEpoch; // in Sekunden
     unsigned long hours = runtime / 3600;
     unsigned long minutes = (runtime % 3600) / 60;
     unsigned long seconds = runtime % 60;
@@ -386,8 +357,10 @@ void SerialIncome() {
     Serial.print("PC Treshold: ");
     Serial.println(COMPUTER_TRESHHOLD);
     Serial.print("RGB Programm: ");
-    if (active_animation == nullptr) Serial.println("<nullptr>");
-    else Serial.println(active_animation->GetName());
+    if (active_animation == nullptr)
+      Serial.println("<nullptr>");
+    else
+      Serial.println(active_animation->GetName());
     Serial.print("AC1 Temperature: ");
     Serial.println(temperature_ac1);
     Serial.print("AC2 Temperature: ");
@@ -398,21 +371,29 @@ void SerialIncome() {
     Serial.println(humidity_ac2);
     Serial.print("AC Water Level:");
     Serial.println(ac_water_level);
-  } else if (input.startsWith("help")) {
+  }
+  else if (input.startsWith("help"))
+  {
     Serial.println("help - list of commands");
     Serial.println("dump - dump status and sensor data");
     Serial.println("rgb - rgb application");
-  } else {
+  }
+  else
+  {
     Serial.println("Unkown Command. Type 'help' for a list of commands");
   }
 }
 
-void handlePcCommand(String command) {
-  if (command == "TOGGLE") {
+void handlePcCommand(String command)
+{
+  if (command == "TOGGLE")
+  {
     digitalWrite(relay_pin, HIGH);
     delay(1000);
     digitalWrite(relay_pin, LOW);
-  } else if (command == "RESET") {
+  }
+  else if (command == "RESET")
+  {
     digitalWrite(relay_pin, HIGH);
     WDT.refresh();
     delay(3000);
@@ -420,7 +401,9 @@ void handlePcCommand(String command) {
     delay(3000);
     WDT.refresh();
     digitalWrite(relay_pin, LOW);
-  } else {
+  }
+  else
+  {
     Serial.print("Unknown PC command: ");
     Serial.println(command);
   }
@@ -429,45 +412,64 @@ void handlePcCommand(String command) {
 void handleAcCommand(String command)
 {
   Serial.println(command);
-  if(command == "ON/OFF")IrSender.sendNECRaw(0xFF00E710, 0);
-  else if(command == "COOL")IrSender.sendNECRaw(0xEB14E710, 0);
-  else if(command == "DRY")IrSender.sendNECRaw(0xF30CE710, 0);
-  else if(command == "FAN")IrSender.sendNECRaw(0xF708E710, 0);
-  else if(command == "SLEEP")IrSender.sendNECRaw(0xFA05E710, 0);
-  else if(command == "UP")IrSender.sendNECRaw(0xEA15E710, 0);
-  else if(command == "DOWN")IrSender.sendNECRaw(0xF20DE710, 0);
-  else if(command == "HIGH")IrSender.sendNECRaw(0xE916E710, 0);
-  else if(command == "LOW")IrSender.sendNECRaw(0xF50AE710, 0);
+  if (command == "ON/OFF")
+    IrSender.sendNECRaw(0xFF00E710, 0);
+  else if (command == "COOL")
+    IrSender.sendNECRaw(0xEB14E710, 0);
+  else if (command == "DRY")
+    IrSender.sendNECRaw(0xF30CE710, 0);
+  else if (command == "FAN")
+    IrSender.sendNECRaw(0xF708E710, 0);
+  else if (command == "SLEEP")
+    IrSender.sendNECRaw(0xFA05E710, 0);
+  else if (command == "UP")
+    IrSender.sendNECRaw(0xEA15E710, 0);
+  else if (command == "DOWN")
+    IrSender.sendNECRaw(0xF20DE710, 0);
+  else if (command == "HIGH")
+    IrSender.sendNECRaw(0xE916E710, 0);
+  else if (command == "LOW")
+    IrSender.sendNECRaw(0xF50AE710, 0);
   Serial.println(command);
 
-  if(command == "ON/OFF")
+  if (command == "ON/OFF")
   {
     lock_ac_toggle = false;
   }
 }
 
-void handleRgbCommand(String command) {
+void handleRgbCommand(String command)
+{
   Serial.println(command);
-  if (command.startsWith("set") && !command.startsWith("setting")) {
-    if (command == "set") {
+  if (command.startsWith("set") && !command.startsWith("setting"))
+  {
+    if (command == "set")
+    {
       Serial.println("'set' can be used to set an animation. \nUsage: 'set ANIMATION'");
       return;
     }
     String color = command.substring(4);
     int index = animationManager.getAnimationIndex(color);
-    if (index == -1) {
+    if (index == -1)
+    {
       Serial.println("ANIMATION not found");
-    } else {
+    }
+    else
+    {
       last_user_animation = user_animation;
       user_animation = animationManager.getAnimation(index);
       Serial.print("Switched to ");
       Serial.println(color);
     }
-  } else if (command.startsWith("new")) {
-    if (command.startsWith("new static ")) {
+  }
+  else if (command.startsWith("new"))
+  {
+    if (command.startsWith("new static "))
+    {
       command = command.substring(11);
       int spacePos = command.indexOf(' ');
-      if (spacePos == -1 || spacePos == 0 || spacePos >= command.length() - 1) {
+      if (spacePos == -1 || spacePos == 0 || spacePos >= command.length() - 1)
+      {
         Serial.println("Error: Format is 'new static NAME COLOR'");
         return;
       }
@@ -475,24 +477,29 @@ void handleRgbCommand(String command) {
       String hex = command.substring(spacePos + 1);
       uint32_t rgb = (uint32_t)strtoul(hex.c_str(), NULL, 16);
 
-      AnimationSetting* newSettings = animationManager.createSettingsStaticColor(rgb, 255, name);
+      AnimationSetting *newSettings = animationManager.createSettingsStaticColor(rgb, 255, name);
       animationManager.createAnimation(newSettings);
       delete newSettings;
       Serial.println("New static color created!");
-    } else if (command.startsWith("new blink ")) {
+    }
+    else if (command.startsWith("new blink "))
+    {
       command = command.substring(10);
       int firstSpace = command.indexOf(' ');
-      if (firstSpace == -1) {
+      if (firstSpace == -1)
+      {
         Serial.println("Error: Missing arguments. Usage: 'new blink NAME COLOR_ON COLOR_OFF TICKS'");
         return;
       }
       int secondSpace = command.indexOf(' ', firstSpace + 1);
-      if (secondSpace == -1) {
+      if (secondSpace == -1)
+      {
         Serial.println("Error: Missing Color Off/Ticks.");
         return;
       }
       int thirdSpace = command.indexOf(' ', secondSpace + 1);
-      if (thirdSpace == -1) {
+      if (thirdSpace == -1)
+      {
         Serial.println("Error: Missing Ticks.");
         return;
       }
@@ -508,29 +515,35 @@ void handleRgbCommand(String command) {
       String ticksStr = command.substring(thirdSpace + 1);
       uint8_t cycle_ticks = (uint8_t)ticksStr.toInt();
 
-      AnimationSetting* newSettings = animationManager.createSettingsBlink(color_on, color_off, cycle_ticks, 255, name);
+      AnimationSetting *newSettings = animationManager.createSettingsBlink(color_on, color_off, cycle_ticks, 255, name);
 
       animationManager.createAnimation(newSettings);
       delete newSettings;
       Serial.println("New blink animation created!");
-    } else if (command.startsWith("new fade")) {
-      if (command == "new fade" || command == "new fade help") {
+    }
+    else if (command.startsWith("new fade"))
+    {
+      if (command == "new fade" || command == "new fade help")
+      {
         Serial.println("'new fade NAME PALETTE SPEED DELTA'\nPalette: 0: Rainbow, 1: Party, 2: Ocean, 3: Forest, 4: Heat, 5: Lava, 6: Matrix\nDelta: Width");
         return;
       }
       command = command.substring(9);
       int firstSpace = command.indexOf(' ');
-      if (firstSpace == -1) {
+      if (firstSpace == -1)
+      {
         Serial.println("Error: Missing arguments. Usage: 'new fade NAME PALETTE SPEED DELTA'");
         return;
       }
       int secondSpace = command.indexOf(' ', firstSpace + 1);
-      if (secondSpace == -1) {
+      if (secondSpace == -1)
+      {
         Serial.println("Error: Missing Speed/Delta.");
         return;
       }
       int thirdSpace = command.indexOf(' ', secondSpace + 1);
-      if (thirdSpace == -1) {
+      if (thirdSpace == -1)
+      {
         Serial.println("Error: Missing Delta.");
         return;
       }
@@ -546,16 +559,20 @@ void handleRgbCommand(String command) {
       String deltaStr = command.substring(thirdSpace + 1);
       uint8_t delta = (uint8_t)deltaStr.toInt();
 
-      AnimationSetting* newSettings = animationManager.createSettingsPalette(palette, speed, delta, 255, name);
+      AnimationSetting *newSettings = animationManager.createSettingsPalette(palette, speed, delta, 255, name);
 
       animationManager.createAnimation(newSettings);
       delete newSettings;
       Serial.println("New fade animation created!");
-    } else {
+    }
+    else
+    {
       Serial.println("'new' can be used to create an animation. \nUsage:\n'new static NAME COLOR'\n'new blink NAME COLOR_ON COLOR_OFF TICKS'\n'new fade NAME PALETTE SPEED DELTA'");
       return;
     }
-  } else if (command.startsWith("setting")) {
+  }
+  else if (command.startsWith("setting"))
+  {
     String params = command.substring(7);
     params.trim();
 
@@ -563,7 +580,8 @@ void handleRgbCommand(String command) {
     int firstSpace = params.indexOf(' ');
 
     // Falls kein Parameter da ist
-    if (params.length() == -1) {
+    if (params.length() == -1)
+    {
       Serial.println("Usage:\nsetting set NAME INDEX DATA\nsetting show NAME INDEX\nsetting list NAME");
       return;
     }
@@ -576,26 +594,34 @@ void handleRgbCommand(String command) {
     String args = (firstSpace == -1) ? "" : params.substring(firstSpace + 1);
     args.trim();
 
-    if (subCommand == "list") {
+    if (subCommand == "list")
+    {
       // Syntax: setting list NAME
-      if (args.length() == 0) {
+      if (args.length() == 0)
+      {
         Serial.println("Error: Missing Name. Usage: setting list NAME");
         return;
       }
 
       String animName = args;
-      IAnimation* anim = animationManager.getAnimationByName(animName);
+      IAnimation *anim = animationManager.getAnimationByName(animName);
 
-      if (anim != nullptr) {
+      if (anim != nullptr)
+      {
         Serial.println("Available Settings for " + animName + ":");
         Serial.println(anim->GetAvailableSettings());
-      } else {
+      }
+      else
+      {
         Serial.println("Animation '" + animName + "' not found.");
       }
-    } else if (subCommand == "show") {
+    }
+    else if (subCommand == "show")
+    {
       // Syntax: setting show NAME INDEX
       int nameSpace = args.indexOf(' ');
-      if (nameSpace == -1) {
+      if (nameSpace == -1)
+      {
         Serial.println("Error: Missing Index. Usage: setting show NAME INDEX");
         return;
       }
@@ -604,8 +630,9 @@ void handleRgbCommand(String command) {
       String indexStr = args.substring(nameSpace + 1);
       int index = indexStr.toInt();
 
-      IAnimation* anim = animationManager.getAnimationByName(animName);
-      if (anim != nullptr) {
+      IAnimation *anim = animationManager.getAnimationByName(animName);
+      if (anim != nullptr)
+      {
         int value = anim->GetSetting(index);
         Serial.print("Setting ");
         Serial.print(index);
@@ -614,13 +641,18 @@ void handleRgbCommand(String command) {
         Serial.print(" (Hex: 0x");
         Serial.print(value, HEX);
         Serial.println(")");
-      } else {
+      }
+      else
+      {
         Serial.println("Animation '" + animName + "' not found.");
       }
-    } else if (subCommand == "set") {
+    }
+    else if (subCommand == "set")
+    {
       // Syntax: setting set NAME INDEX DATA
       int nameSpace = args.indexOf(' ');
-      if (nameSpace == -1) {
+      if (nameSpace == -1)
+      {
         Serial.println("Error: Missing Index/Data. Usage: setting set NAME INDEX DATA");
         return;
       }
@@ -629,7 +661,8 @@ void handleRgbCommand(String command) {
       String rest = args.substring(nameSpace + 1);
 
       int indexSpace = rest.indexOf(' ');
-      if (indexSpace == -1) {
+      if (indexSpace == -1)
+      {
         Serial.println("Error: Missing Data. Usage: setting set NAME INDEX DATA");
         return;
       }
@@ -639,110 +672,156 @@ void handleRgbCommand(String command) {
 
       unsigned long value = strtoul(dataStr.c_str(), NULL, 0);
 
-      IAnimation* anim = animationManager.getAnimationByName(animName);
-      if (anim != nullptr) {
-        if (anim->UpdateSetting(index, value)) {
+      IAnimation *anim = animationManager.getAnimationByName(animName);
+      if (anim != nullptr)
+      {
+        if (anim->UpdateSetting(index, value))
+        {
           Serial.println("Setting updated.");
           int id = animationManager.getAnimationIndex(animName);
           animationManager.saveAnimationIndex(id);
           Serial.println("Saved to storage.");
-        } else {
+        }
+        else
+        {
           Serial.println("Failed to update setting. Invalid Index or Value?");
         }
-      } else {
+      }
+      else
+      {
         Serial.println("Animation '" + animName + "' not found.");
       }
-    } else {
+    }
+    else
+    {
       Serial.println("Unknown command. Usage:\nsetting set NAME INDEX DATA\nsetting show NAME INDEX\nsetting list NAME");
     }
-  } else if (command == "list") {
+  }
+  else if (command == "list")
+  {
     int amount = animationManager.getAnimationCount();
     int i = 0;
-    while (i < 100 && amount > 0) {
-      IAnimation* ani = animationManager.getAnimation(i);
+    while (i < 100 && amount > 0)
+    {
+      IAnimation *ani = animationManager.getAnimation(i);
       i++;
-      if (ani == nullptr) return;
+      if (ani == nullptr)
+        return;
       Serial.println(ani->GetName());
       amount--;
     }
-  } else if (command == "toggle") {
-    if (user_animation == animationManager.getAnimationByName("OFF")) {
-      if (last_user_animation == nullptr || last_user_animation == animationManager.getAnimationByName("OFF")) user_animation = animationManager.getAnimationByName("WHITE");
-      else user_animation = last_user_animation;
-    } else {
+  }
+  else if (command == "toggle")
+  {
+    if (user_animation == animationManager.getAnimationByName("OFF"))
+    {
+      if (last_user_animation == nullptr || last_user_animation == animationManager.getAnimationByName("OFF"))
+        user_animation = animationManager.getAnimationByName("WHITE");
+      else
+        user_animation = last_user_animation;
+    }
+    else
+    {
       last_user_animation = user_animation;
       user_animation = animationManager.getAnimationByName("OFF");
     }
-  } else if (command.startsWith("delete")) {
-    if (command == "delete") {
+  }
+  else if (command.startsWith("delete"))
+  {
+    if (command == "delete")
+    {
       Serial.println("'delete' can be used to delete an animation. \nUsage: 'delete ANIMATION'");
       return;
     }
     String color = command.substring(7);
     int index = animationManager.getAnimationIndex(color);
-    if (index == -1) {
+    if (index == -1)
+    {
       Serial.println("Animation not found");
-    } else {
-      if (user_animation == animationManager.getAnimation(index)) user_animation = animationManager.getAnimationByName("OFF");
+    }
+    else
+    {
+      if (user_animation == animationManager.getAnimation(index))
+        user_animation = animationManager.getAnimationByName("OFF");
       animationManager.deleteAnimation(index);
       Serial.print("Deletet Animation ");
       Serial.println(color);
     }
-  } else if(command.startsWith("brightness")){
-    if(command=="brightness")
+  }
+  else if (command.startsWith("brightness"))
+  {
+    if (command == "brightness")
     {
       Serial.println("Change global brightness: brightness UP/DOWN | brightness +/- | brightness MIN/MAX");
     }
-    else if(command.indexOf("UP")>-1)rgb_brightness+=10;
-    else if(command.indexOf("DOWN")>-1)rgb_brightness-=10;
-    else if(command.indexOf("+")>-1)rgb_brightness+=10;
-    else if(command.indexOf("-")>-1)rgb_brightness-=10;
-    else if(command.indexOf("MIN")>-1)rgb_brightness=10;
-    else if(command.indexOf("MAX")>-1)rgb_brightness=255;
-    else Serial.println("Unkown command. Usage: brightness UP/DOWN | brightness +/- | brightness MIN/MAX");
-    
+    else if (command.indexOf("UP") > -1)
+      rgb_brightness += 10;
+    else if (command.indexOf("DOWN") > -1)
+      rgb_brightness -= 10;
+    else if (command.indexOf("+") > -1)
+      rgb_brightness += 10;
+    else if (command.indexOf("-") > -1)
+      rgb_brightness -= 10;
+    else if (command.indexOf("MIN") > -1)
+      rgb_brightness = 10;
+    else if (command.indexOf("MAX") > -1)
+      rgb_brightness = 255;
+    else
+      Serial.println("Unkown command. Usage: brightness UP/DOWN | brightness +/- | brightness MIN/MAX");
   }
-  else if (command == "help") {
+  else if (command == "help")
+  {
     Serial.print("help - list of commands\nset - set an Animation\nnew - create new animation\nlist - list all Animations\ntoggle - Turn light on/off\nsettings - change setting of Animation\ndelete - delete Animation\n");
-  } else {
+  }
+  else
+  {
     Serial.println("Unkown Command. Type 'help' for a list of commands");
   }
 }
 
-bool BeginRGBTimer(float rate) {
+bool BeginRGBTimer(float rate)
+{
   uint8_t timer_type = GPT_TIMER;
   int8_t tindex = FspTimer::get_available_timer(timer_type);
-  if (tindex < 0) {
+  if (tindex < 0)
+  {
     tindex = FspTimer::get_available_timer(timer_type, true);
   }
-  if (tindex < 0) {
+  if (tindex < 0)
+  {
     return false;
   }
 
   FspTimer::force_use_of_pwm_reserved_timer();
 
-  if (!RGBTimer.begin(TIMER_MODE_PERIODIC, timer_type, tindex, rate, 0.0f, RGBCallback)) {
+  if (!RGBTimer.begin(TIMER_MODE_PERIODIC, timer_type, tindex, rate, 0.0f, RGBCallback))
+  {
     return false;
   }
 
-  if (!RGBTimer.setup_overflow_irq()) {
+  if (!RGBTimer.setup_overflow_irq())
+  {
     return false;
   }
 
-  if (!RGBTimer.open()) {
+  if (!RGBTimer.open())
+  {
     return false;
   }
 
-  if (!RGBTimer.start()) {
+  if (!RGBTimer.start())
+  {
     return false;
   }
   return true;
 }
 
-void OnMqttMessage(int messageSize) {
+void OnMqttMessage(int messageSize)
+{
   String topic = mqttClient.messageTopic();
   String payload = "";
-  while (mqttClient.available()) {
+  while (mqttClient.available())
+  {
     payload += (char)mqttClient.read();
   }
 
@@ -751,21 +830,25 @@ void OnMqttMessage(int messageSize) {
   Serial.print("Payload: ");
   Serial.println(payload);
 
-  if (topic == TOPIC_PC_CMD) {
+  if (topic == TOPIC_PC_CMD)
+  {
     handlePcCommand(payload);
   }
 
-  if (topic == TOPIC_RGB_CMD) {
+  if (topic == TOPIC_RGB_CMD)
+  {
     handleRgbCommand(payload);
   }
 
-  if(topic == TOPIC_AC_CMD) {
+  if (topic == TOPIC_AC_CMD)
+  {
     handleAcCommand(payload);
   }
 }
 
-void PublishData() {
-  static IAnimation* local_last_animation = nullptr;
+void PublishData()
+{
+  static IAnimation *local_last_animation = nullptr;
   static float last_temperature = 0;
   static float last_humidity = 0;
   static bool last_pc_status = false;
@@ -787,60 +870,68 @@ void PublishData() {
 
   // ===== Publish Data =====
 
-  if (pc_status != last_pc_status || force) {
+  if (pc_status != last_pc_status || force)
+  {
     last_pc_status = pc_status;
-    mqttClient.beginMessage(TOPIC_PC_STATUS, true, 1);  // topic, retained, qos
+    mqttClient.beginMessage(TOPIC_PC_STATUS, true, 1); // topic, retained, qos
     mqttClient.print(pc_status);
     mqttClient.endMessage();
   }
 
-  if (user_animation != local_last_animation || force) {
+  if (user_animation != local_last_animation || force)
+  {
     local_last_animation = user_animation;
-    mqttClient.beginMessage(TOPIC_RGB_STATUS, true, 1);  // topic, retained, qos
+    mqttClient.beginMessage(TOPIC_RGB_STATUS, true, 1); // topic, retained, qos
     mqttClient.print(user_animation->GetName());
     mqttClient.endMessage();
 
-    mqttClient.beginMessage(TOPIC_RGB_STATUS_DIG, true, 1);  // topic, retained, qos
-    mqttClient.print(user_animation->GetName() == "OFF"? "0" : "1");
+    mqttClient.beginMessage(TOPIC_RGB_STATUS_DIG, true, 1); // topic, retained, qos
+    mqttClient.print(user_animation->GetName() == "OFF" ? "0" : "1");
     mqttClient.endMessage();
   }
 
-  if (temperature != last_temperature && !isnan(temperature)) {
+  if (temperature != last_temperature && !isnan(temperature))
+  {
     last_temperature = temperature;
-    mqttClient.beginMessage(TOPIC_TEMP, false, 0);  // topic, retained, qos
+    mqttClient.beginMessage(TOPIC_TEMP, false, 0); // topic, retained, qos
     mqttClient.print(temperature);
     mqttClient.endMessage();
   }
 
-  if (humidity - last_humidity != 0 && !isnan(humidity)) {
+  if (humidity - last_humidity != 0 && !isnan(humidity))
+  {
     last_humidity = humidity;
     mqttClient.beginMessage(TOPIC_HUMIDITY, false, 0);
     mqttClient.print(humidity);
     mqttClient.endMessage();
   }
 
-  if (temperature_ac1 - last_ac1_temperature != 0 && !isnan(temperature_ac1)) {
+  if (temperature_ac1 - last_ac1_temperature != 0 && !isnan(temperature_ac1))
+  {
     last_ac1_temperature = temperature_ac1;
     mqttClient.beginMessage(TOPIC_AC_TEMP1, false, 0);
     mqttClient.print(temperature_ac1);
     mqttClient.endMessage();
   }
 
-  if (temperature_ac2 - last_ac2_temperature != 0 && !isnan(temperature_ac2)) {
+  if (temperature_ac2 - last_ac2_temperature != 0 && !isnan(temperature_ac2))
+  {
     last_ac2_temperature = temperature_ac2;
     mqttClient.beginMessage(TOPIC_AC_TEMP2, false, 0);
     mqttClient.print(temperature_ac2);
     mqttClient.endMessage();
   }
 
-  if (humidity_ac1 - last_ac1_humidity != 0 && !isnan(humidity_ac1)) {
+  if (humidity_ac1 - last_ac1_humidity != 0 && !isnan(humidity_ac1))
+  {
     last_ac1_humidity = humidity_ac1;
     mqttClient.beginMessage(TOPIC_AC_HUMID1, false, 0);
     mqttClient.print(humidity_ac1);
     mqttClient.endMessage();
   }
 
-  if (humidity_ac2 - last_ac2_humidity != 0 && !isnan(humidity_ac2)) {
+  if (humidity_ac2 - last_ac2_humidity != 0 && !isnan(humidity_ac2))
+  {
     last_ac2_humidity = humidity_ac2;
     mqttClient.beginMessage(TOPIC_AC_HUMID2, false, 0);
     mqttClient.print(humidity_ac2);
@@ -855,11 +946,14 @@ void PublishData() {
     mqttClient.endMessage();
   }
 
-  if(force)counter = 0;
-  else counter++;
+  if (force)
+    counter = 0;
+  else
+    counter++;
 }
 
-void ConnectMqtt() {
+void ConnectMqtt()
+{
   mqttClient.onMessage(OnMqttMessage);
   mqttClient.setUsernamePassword(mqtt_user, mqtt_pass);
 
@@ -869,7 +963,8 @@ void ConnectMqtt() {
   Serial.print("Connecting to MQTT broker '");
   Serial.print(broker);
   Serial.print("'...");
-  while (!mqttClient.connect(broker, port)) {
+  while (!mqttClient.connect(broker, port))
+  {
     Serial.print(".");
     delay(700);
     WDT.refresh();
@@ -881,7 +976,8 @@ void ConnectMqtt() {
   mqttClient.subscribe(TOPIC_AC_CMD, 2);
 }
 
-void ConnectWifi() {
+void ConnectWifi()
+{
   IPAddress dns(8, 8, 8, 8);
   WiFi.setDNS(dns);
 
@@ -890,7 +986,8 @@ void ConnectWifi() {
   Serial.print("'...");
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print(".");
     WDT.refresh();
@@ -898,41 +995,50 @@ void ConnectWifi() {
   Serial.println("\nConnected! IP-Adress: " + WiFi.localIP().toString());
 }
 
-void FireAnimation() {
+void FireAnimation()
+{
   bool fireReverseDirection = false;
   random16_add_entropy(random16());
   // Array of temperature readings at each simulation cell
   static uint8_t heat[RGB_COUNT];
 
   // Step 1.  Cool down every cell a little
-  for (int i = 0; i < RGB_COUNT; i++) {
+  for (int i = 0; i < RGB_COUNT; i++)
+  {
     heat[i] = qsub8(heat[i], random8(0, ((COOLING * 10) / RGB_COUNT) + 2));
   }
 
   // Step 2.  Heat from each cell drifts 'up' and diffuses a little
-  for (int k = RGB_COUNT - 1; k >= 2; k--) {
+  for (int k = RGB_COUNT - 1; k >= 2; k--)
+  {
     heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2]) / 3;
   }
 
   // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
-  if (random8() < SPARKING) {
+  if (random8() < SPARKING)
+  {
     int y = random8(7);
     heat[y] = qadd8(heat[y], random8(160, 255));
   }
 
   // Step 4.  Map from heat cells to LED colors
-  for (int j = 0; j < RGB_COUNT; j++) {
+  for (int j = 0; j < RGB_COUNT; j++)
+  {
     CRGB color = HeatColor(heat[j]);
     int pixelnumber;
-    if (fireReverseDirection) {
+    if (fireReverseDirection)
+    {
       pixelnumber = (RGB_COUNT - 1) - j;
-    } else {
+    }
+    else
+    {
       pixelnumber = j;
       leds[pixelnumber] = color;
     }
   }
 }
 
-inline void CheckAnimation() {
+inline void CheckAnimation()
+{
   active_animation = (priority_animation == nullptr) ? user_animation : priority_animation;
 }

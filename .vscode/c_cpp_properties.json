@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "name": "Arduino Uno R4",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "D:/Linus/Coding/Arduino/libraries/DHT_sensor_library/**",
+                "D:/Linus/Coding/Arduino/libraries/Adafruit_Unified_Sensor/**",
+                "D:/Linus/Coding/Arduino/libraries/**",
+                "C:/Users/${env:USERNAME}/AppData/Local/Arduino15/packages/arduino/hardware/renesas_uno/**",
+                "C:/Users/${env:USERNAME}/AppData/Local/Arduino15/packages/arduino/tools/**"
+            ],
+            "defines": [
+                "ARDUINO=10800",
+                "ARDUINO_UNOR4_WIFI"
+            ],
+            "compilerPath": "gcc", 
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-gcc-arm"
+        }
+    ],
+    "version": 4
+}
