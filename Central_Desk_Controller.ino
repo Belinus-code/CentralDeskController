@@ -39,10 +39,18 @@ void setup()
   serial_handler.init(&io, &pc, &ac, &rgb, &time_manager, &network);
 
   interrupts();
-  Serial.println("Finished Setup, starting loop...");
+  WDT.begin(5000);
+  Serial.println("Finished Setup, starting loop.");
 }
 
 void loop()
 {
+  pc.update();
+  ac.update();
+  rgb.update();
+  time_manager.update();
+  network.update();
+  mqtt_manager.update();
+  serial_handler.update();
   WDT.refresh();
 }
