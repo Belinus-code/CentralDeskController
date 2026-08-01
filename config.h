@@ -12,6 +12,20 @@
 #define BLINKING_SPEED 250
 #define PC_TOGGLE_TIME 1000
 #define PC_RESET_TIME 6000;
+#define WIFI_CHECK_INTERVAL 5000
+
+// ===== RGB PROGRAMMS =====
+
+#define COOLING 80
+#define SPARKING 170
+#define DEFAULT_RGB_PRG "RAINBOW"
+
+// ===== AC DEFINES =====
+
+#define AC_SRESET_DURATION 10000
+#define AC_SOFFLINE_TIME 10000
+#define AC_WATER_FULL_TIME 10000
+#define AC_SENSOR_POLL 2500
 
 // ===== PIN DEFINITION =====
 
@@ -30,28 +44,28 @@ constexpr int dht2_pin = 6; // DHT AC 2
 constexpr int water_sensor_pin = A2;
 
 // ===== MQTT DEFINITIONS =====
-
 const char broker[] = BROKER_HOST_ADRESS;
 constexpr int port = BROKER_HOST_PORT;
 const char mqtt_user[] = BROKER_USER;
 const char mqtt_pass[] = BROKER_PASSWORD;
-constexpr long publish_interval = 1000;
+constexpr long PUBLISH_INTERVALL = 2000;
+constexpr long MQTT_RECONNECT_INTERVALL = 700;
 
-const char TOPIC_TEMP[] = "linus/sundgau74/desk/temperature";
-const char TOPIC_HUMIDITY[] = "linus/sundgau74/desk/humidity";
-const char TOPIC_AC_TEMP1[] = "linus/sundgau74/ac/temperature_before";
-const char TOPIC_AC_TEMP2[] = "linus/sundgau74/ac/temperature_after";
-const char TOPIC_AC_HUMID1[] = "linus/sundgau74/ac/humidity_before";
-const char TOPIC_AC_HUMID2[] = "linus/sundgau74/ac/humidity_after";
-const char TOPIC_PC_CMD[] = "linus/sundgau74/pc/command";
-const char TOPIC_PC_STATUS[] = "linus/sundgau74/pc/status";
-const char TOPIC_RGB_CMD[] = "linus/sundgau74/desk_rgb/command";
-const char TOPIC_RGB_STATUS[] = "linus/sundgau74/desk_rgb/status";
-const char TOPIC_RGB_STATUS_DIG[] = "linus/sundgau74/desk_rgb/status_dig";
-const char TOPIC_AC_CMD[] = "linus/sundgau74/ac/command";
-const char TOPIC_AC_WATER[] = "linus/sundgau74/ac/water_full";
+#define TOPIC_TEMP "linus/sundgau74/desk/temperature"
+#define TOPIC_HUMIDITY "linus/sundgau74/desk/humidity"
+#define TOPIC_AC_TEMP1 "linus/sundgau74/ac/temperature_before"
+#define TOPIC_AC_TEMP2 "linus/sundgau74/ac/temperature_after"
+#define TOPIC_AC_HUMID1 "linus/sundgau74/ac/humidity_before"
+#define TOPIC_AC_HUMID2 "linus/sundgau74/ac/humidity_after"
+#define TOPIC_PC_CMD "linus/sundgau74/pc/command"
+#define TOPIC_PC_STATUS "linus/sundgau74/pc/status"
+#define TOPIC_RGB_CMD "linus/sundgau74/desk_rgb/command"
+#define TOPIC_RGB_STATUS "linus/sundgau74/desk_rgb/status"
+#define TOPIC_RGB_STATUS_DIG "linus/sundgau74/desk_rgb/status_dig"
+#define TOPIC_AC_CMD "linus/sundgau74/ac/command"
+#define TOPIC_AC_WATER "linus/sundgau74/ac/water_full"
 
 // ===== NTP DEFINITIONS =====
 
 const long NTP_TIME_OFFSET = 3600;
-const char *NTP_SERVER = "pool.ntp.org";
+#define NTP_SERVER "pool.ntp.org"
