@@ -1,7 +1,7 @@
 #pragma once
 #include <FastLED.h>
 #include <FspTimer.h>
-#include "animations.h"
+#include "animation_manager.h"
 #include <Preferences.h>
 #include "system_io.h"
 #include "Arduino.h"
@@ -22,12 +22,16 @@ namespace Desk
         bool setUserAnimation(const String &str);
         bool setPriorityAnimation(const String &str);
         void clearPriorityAnimation();
+        IAnimation* getUserAnimation() const { return user_animation_; }
+        void setBrightness(int val);
+        void adjustBrightness(int delta);
+        void toggleUserAnimation();
 
         void publishCall(MqttManager *mqtt);
         void subscribeCall(MqttManager *mqtt);
         bool onMqttMessage(const String &topic, const String &payload);
 
-        AnimationManager *getAnimMan() { return animationManager_; }
+        AnimationManager *getAnimMan() { return animation_manager_; }
 
     private:
         // Holds the currently displayed Animation
@@ -45,12 +49,12 @@ namespace Desk
 
         int rgb_brightness_ = 0xFF;
         int last_rgb_brightness_ = 0xFF;
-        bool flushRGB_ = false;
+        bool flush_rgb_ = false;
 
         CRGB leds_[RGB_COUNT];
-        AnimationManager *animationManager_ = nullptr;
+        AnimationManager *animation_manager_ = nullptr;
         SystemIO *io_ = nullptr;
-        FspTimer RGBTimer;
+        FspTimer rgb_timer_;
         static RGBController *instance_;
 
         static void RGBCallback(timer_callback_args_t __attribute((unused)) * p_args);

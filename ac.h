@@ -39,6 +39,7 @@ namespace Desk
         uint32_t last_sensor_poll_ = 0;
         bool lock_system_toggle_ = false;
         bool last_poll_failed = false;
+        bool is_ac_on_ = false;
 
         bool current_water_ = false;
         bool last_water_ = false;
@@ -56,6 +57,11 @@ namespace Desk
         float incase_humid_before_ = 0;
         float ac1_humid_before_ = 0;
         float ac2_humid_before_ = 0;
+
+        // Timer for automatic AC Turn-Off
+        bool is_timer_active_ = false;
+        uint32_t timer_start_ = 0;
+        uint32_t timer_duration_ = 0;
 
         uint32_t getRcCodeFromString(const String &cmd);
     };

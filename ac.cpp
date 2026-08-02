@@ -12,6 +12,12 @@ namespace Desk
     void AC::update()
     {
         uint32_t time = millis();
+        if (is_timer_active_ && (time - timer_start_ >= timer_duration_) && is_ac_on_) 
+        {
+            Serial.println("[AC] Timer reached & AC ON! Turning AC off.");
+            is_timer_active_ = false;
+            toggleAc(false);
+        }
         current_water_ = io_->isWaterFull();
         if (!current_water_)
         {
@@ -48,6 +54,7 @@ namespace Desk
             {
                 last_sensor_functioning_ = time;
                 float tempdiff = ac1_temp_ - ac2_temp_;
+                is_ac_on_ = tempdiff > 3;
                 if (tempdiff > 3 && current_water_)
                 {
                     if (!is_alarming_)
@@ -69,6 +76,7 @@ namespace Desk
                     io_->turnOffDHTSensors();
                     is_reseting_ = true;
                     last_sensor_maintainance_ = time;
+                    Serial.println("[AC] DHT Sensors failed for 10 Seconds. Turning them Off...");
                 }
             }
         }
@@ -76,6 +84,7 @@ namespace Desk
         {
             io_->turnOnDTHSensors();
             is_reseting_ = false;
+            Serial.println("[AC] DHT Sensors turned for 10 Seconds. Turning them On Again...");
         }
     }
 
@@ -149,11 +158,33 @@ namespace Desk
     // This is ONLY to be called from user action directly!
     void AC::processCommand(const String &cmd)
     {
+        String upperCmd = cmd;
+        upperCmd.toUpperCase();
+
+        if (upperCmd.startsWith("TIMER ")) 
+        {
+            int minutes = upperCmd.substring(6).toInt(); 
+            if (minutes > 0) {
+                is_timer_active_ = true;
+                timer_start_ = millis();
+                timer_duration_ = minutes * 60000UL; 
+                Serial.println("[AC] Timer activated: Automatic deactivation in " + String(minutes) + " minutes.");
+            } else {
+                is_timer_active_ = false;
+                Serial.println("[AC] Timer was cancelled.");
+            }
+            return;
+        }
         uint32_t acc = getRcCodeFromString(cmd);
         if (acc == 0)
             return;
         if (acc == getRcCodeFromString("toggle"))
             lock_system_toggle_ = false;
+            if(is_timer_active_)
+            {
+                is_timer_active_ = false;
+                Serial.println("[AC] Timer was abborted.");
+            }
         io_->sendIRMessage(acc);
     }
 
@@ -162,6 +193,8 @@ namespace Desk
         String lowerCmd = cmd;
         lowerCmd.toLowerCase();
 
+    	if (lowerCmd == "on/off")
+            return 0xFF00E710;
         if (lowerCmd == "on")
             return 0xFF00E710;
         if (lowerCmd == "toggle")

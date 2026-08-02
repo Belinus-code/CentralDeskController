@@ -7,6 +7,7 @@ namespace Desk
 
   void SystemIO::init(IButtonListener *button_listener)
   {
+    Serial.println("[SystemIO] Starting Init");
     instance_ = this;
     button_listener_ = button_listener;
     pinMode(key_pin, INPUT);
@@ -26,10 +27,13 @@ namespace Desk
     digitalWrite(water_sensor_pin, LOW);
     digitalWrite(dht_power_pin, HIGH);
 
+    Serial.println("[SystemIO] Attaching Interrupts");
+
     instance_ = this;
     attachInterrupt(key_pin, key_isr_static, CHANGE);
     attachInterrupt(switch_pin, switch_isr_static, CHANGE);
     attachInterrupt(button_pin, button_isr_static, CHANGE);
+    Serial.println("[SystemIO] Init finished");
   }
 
   void SystemIO::sendIRMessage(uint32_t value)

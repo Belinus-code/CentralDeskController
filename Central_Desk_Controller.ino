@@ -25,9 +25,16 @@ SerialHandler serial_handler;
 
 void setup()
 {
-  noInterrupts();
+  delay(1000); //Otherwise first few Serial prints are somehow lost
   Serial.begin(115200);
-  Serial.println("Setup started. Creating Objects.");
+
+  // Check if (re)start was caused by Watchdog
+  if (R_SYSTEM->RSTSR1_b.WDTRF)
+  {
+    Serial.println("[System] Warning! Restart caused by Watchdog!");
+    R_SYSTEM->RSTSR1_b.WDTRF = 0; 
+  }
+  Serial.println("[System] Setup started. Creating Objects.");
 
   io.init(&pc);
   pc.init(&io);
@@ -35,12 +42,16 @@ void setup()
   ac.init(&io, &rgb);
   network.init();
   time_manager.init(network.getWifiUDP());
+
   mqtt_manager.init(network.getWifiClient(), &network);
+  mqtt_manager.registerNode(&pc);
+  mqtt_manager.registerNode(&ac);
+  mqtt_manager.registerNode(&rgb);
+
   serial_handler.init(&io, &pc, &ac, &rgb, &time_manager, &network);
 
-  interrupts();
   WDT.begin(5000);
-  Serial.println("Finished Setup, starting loop.");
+  Serial.println("[System] Finished Setup, starting loop.");
 }
 
 void loop()
@@ -48,8 +59,8 @@ void loop()
   pc.update();
   ac.update();
   rgb.update();
-  time_manager.update();
   network.update();
+  time_manager.update();
   mqtt_manager.update();
   serial_handler.update();
   WDT.refresh();

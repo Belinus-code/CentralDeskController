@@ -2,6 +2,7 @@
 #include <WiFiUdp.h>
 #include <NTPClient.h>
 #include <Arduino.h>
+#include <time.h>
 
 namespace Desk
 {
@@ -17,5 +18,8 @@ namespace Desk
 
     private:
         NTPClient *timeClient_ = nullptr;
+        long base_offset_ = 3600;
+
+        bool isEuropeanSummerTime(uint32_t epoch_time);
     };
 }

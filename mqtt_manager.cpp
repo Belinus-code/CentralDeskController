@@ -83,6 +83,7 @@ namespace Desk
             payload += (char)mqtt_client_->read();
         }
 
+        Serial.println("[MqttManager] Message Received! Payload: " + payload + " on Topic: " + topic);
         for (int i = 0; i < nodes_.size(); i++)
         {
             if (nodes_[i]->onMqttMessage(topic, payload))

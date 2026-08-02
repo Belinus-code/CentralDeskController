@@ -3,6 +3,11 @@
 namespace Desk
 {
 
+    void PC::init(SystemIO *io)
+    {
+        io_ = io;
+    }
+
     void PC::togglePC()
     {
         doing_start_ = millis();
@@ -57,7 +62,7 @@ namespace Desk
 
     bool PC::onMqttMessage(const String &topic, const String &payload)
     {
-        if (topic == TOPIC_AC_CMD)
+        if (topic == TOPIC_PC_CMD)
         {
             if (payload == "TOGGLE")
                 togglePC();

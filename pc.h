@@ -8,7 +8,7 @@ namespace Desk
     class PC : public IButtonListener, public IMqttNode
     {
     public:
-        void init(SystemIO *io) { io_ = io; }
+        void init(SystemIO *io);
 
         // Update Method checks everything
         void update();

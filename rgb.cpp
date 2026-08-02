@@ -5,41 +5,47 @@ namespace Desk
     RGBController *RGBController::instance_ = nullptr;
     void RGBController::init(SystemIO *io, Preferences &prefs)
     {
+        Serial.println("[RGB] Starting Init");
         io_ = io;
         instance_ = this;
-        animationManager_ = new AnimationManager(leds_, RGB_COUNT, prefs);
+        Serial.println("[RGB] Creating Animation Manager");
+        animation_manager_ = new AnimationManager(leds_, RGB_COUNT, prefs);
         FastLED.addLeds<WS2812B, led_pin, GRB>(leds_, RGB_COUNT).setCorrection(TypicalLEDStrip);
-        animationManager_->begin();
+        animation_manager_->begin();
+
+        Serial.println("[RGB] Creating Animations");
 
         // Ensure that Animations needed by System are existing
-        if (animationManager_->getAnimationIndex("OFF") == -1)
+        if (animation_manager_->getAnimationIndex("OFF") == -1)
         {
-            AnimationSetting *newSettings = animationManager_->createSettingsStaticColor(0, 255, "OFF");
-            animationManager_->createAnimation(newSettings);
+            AnimationSetting *newSettings = animation_manager_->createSettingsStaticColor(0, 255, "OFF");
+            animation_manager_->createAnimation(newSettings);
             delete newSettings;
         }
 
-        if (animationManager_->getAnimationIndex("RED") == -1)
+        if (animation_manager_->getAnimationIndex("RED") == -1)
         {
-            AnimationSetting *newSettings = animationManager_->createSettingsStaticColor(0xFF0000, 255, "RED");
-            animationManager_->createAnimation(newSettings);
+            AnimationSetting *newSettings = animation_manager_->createSettingsStaticColor(0xFF0000, 255, "RED");
+            animation_manager_->createAnimation(newSettings);
             delete newSettings;
         }
 
-        if (animationManager_->getAnimationIndex("SWITCH_BLINK") == -1)
+        if (animation_manager_->getAnimationIndex("SWITCH_BLINK") == -1)
         {
-            AnimationSetting *newSettings = animationManager_->createSettingsBlink(0xFF0000, 0, 8, 255, "SWITCH_BLINK");
-            animationManager_->createAnimation(newSettings);
+            AnimationSetting *newSettings = animation_manager_->createSettingsBlink(0xFF0000, 0, 16, 255, "SWITCH_BLINK");
+            animation_manager_->createAnimation(newSettings);
             delete newSettings;
         }
 
-        if (animationManager_->getAnimationIndex("RAINBOW") == -1)
+        if (animation_manager_->getAnimationIndex("RAINBOW") == -1)
         {
-            AnimationSetting *newSettings = animationManager_->createSettingsPalette(0, 3, 0, 255, "RAINBOW");
-            animationManager_->createAnimation(newSettings);
+            AnimationSetting *newSettings = animation_manager_->createSettingsPalette(0, 3, 0, 255, "RAINBOW");
+            animation_manager_->createAnimation(newSettings);
             delete newSettings;
         }
-        user_animation_ = animationManager_->getAnimationByName("OFF");
+        user_animation_ = animation_manager_->getAnimationByName("OFF");
+        BeginRGBTimer(20);
+        Serial.println("[RGB] Init finished");
     }
 
     void RGBController::update()
@@ -48,32 +54,32 @@ namespace Desk
         if (io_->wasKeyInterrupt())
         {
             if (io_->getKey())
-                priority_animation_ = animationManager_->getAnimationByName("RED");
+                priority_animation_ = animation_manager_->getAnimationByName("RED");
             else
                 priority_animation_ = nullptr;
         }
         if (io_->wasSwitchInterrupt())
         {
             if (io_->getSwitch())
-                priority_animation_ = animationManager_->getAnimationByName("SWITCH_BLINK");
+                priority_animation_ = animation_manager_->getAnimationByName("SWITCH_BLINK");
             else
-                priority_animation_ = io_->getKey() ? animationManager_->getAnimationByName("RED") : nullptr;
+                priority_animation_ = io_->getKey() ? animation_manager_->getAnimationByName("RED") : nullptr;
         }
         if (io_->wasButtonInterrupt())
         {
             if (io_->getButton())
             {
-                if (user_animation_ == animationManager_->getAnimationByName("OFF"))
+                if (user_animation_ == animation_manager_->getAnimationByName("OFF"))
                 {
-                    if (last_user_animation_ == nullptr || last_user_animation_ == animationManager_->getAnimationByName("OFF"))
-                        user_animation_ = animationManager_->getAnimationByName(DEFAULT_RGB_PRG);
+                    if (last_user_animation_ == nullptr || last_user_animation_ == animation_manager_->getAnimationByName("OFF"))
+                        user_animation_ = animation_manager_->getAnimationByName(DEFAULT_RGB_PRG);
                     else
                         user_animation_ = last_user_animation_;
                 }
                 else
                 {
                     last_user_animation_ = user_animation_;
-                    user_animation_ = animationManager_->getAnimationByName("OFF");
+                    user_animation_ = animation_manager_->getAnimationByName("OFF");
                 }
             }
         }
@@ -84,12 +90,44 @@ namespace Desk
             constrain(rgb_brightness_, 0, 255);
             FastLED.setBrightness(rgb_brightness_);
             last_rgb_brightness_ = rgb_brightness_;
-            flushRGB_ = true;
+            flush_rgb_ = true;
         }
-        if (flushRGB_)
+        if (flush_rgb_)
         {
-            flushRGB_ = false;
+            flush_rgb_ = false;
             FastLED.show();
+        }
+    }
+
+    void RGBController::setBrightness(int val)
+    { 
+        rgb_brightness_ = constrain(val, 0, 255); 
+    }
+
+    void RGBController::adjustBrightness(int delta)
+    { 
+        setBrightness(rgb_brightness_ + delta); 
+    }
+
+    void RGBController::toggleUserAnimation()
+    {
+        if (user_animation_ == animation_manager_->getAnimationByName("OFF"))
+        {
+            if (last_user_animation_ == nullptr || last_user_animation_ == animation_manager_->getAnimationByName("OFF"))
+            {
+                Serial.println("[RGB] No Previous Animation! Switching to Default Animation");
+                setUserAnimation(DEFAULT_RGB_PRG);
+            }
+            else
+            {
+                Serial.println("[RGB] Switching to Previous Animation");
+                user_animation_ = last_user_animation_;
+            }
+        }
+        else
+        {
+            last_user_animation_ = user_animation_;
+            setUserAnimation("OFF");
         }
     }
 
@@ -112,11 +150,16 @@ namespace Desk
     {
         if (topic == TOPIC_RGB_CMD)
         {
-            int index = animationManager_->getAnimationIndex(payload);
+            int index = animation_manager_->getAnimationIndex(payload);
             if (index != -1)
             {
                 last_user_animation_ = user_animation_;
-                user_animation_ = animationManager_->getAnimation(index);
+                user_animation_ = animation_manager_->getAnimation(index);
+                return true;
+            }
+            else if(payload == "toggle")
+            {
+                toggleUserAnimation();
                 return true;
             }
             return false;
@@ -126,29 +169,29 @@ namespace Desk
 
     bool RGBController::setUserAnimation(const String &str)
     {
-        int index = animationManager_->getAnimationIndex("SWITCH_BLINK");
+        int index = animation_manager_->getAnimationIndex(str);
         if (index == -1)
             return false;
         last_user_animation_ = user_animation_;
-        user_animation_ = animationManager_->getAnimation(index);
+        user_animation_ = animation_manager_->getAnimation(index);
         return true;
     }
 
     bool RGBController::setPriorityAnimation(const String &str)
     {
-        int index = animationManager_->getAnimationIndex("SWITCH_BLINK");
+        int index = animation_manager_->getAnimationIndex(str);
         if (index == -1)
             return false;
-        priority_animation_ = animationManager_->getAnimation(index);
+        priority_animation_ = animation_manager_->getAnimation(index);
         return true;
     }
 
     void RGBController::clearPriorityAnimation()
     {
         if (io_->getSwitch())
-            priority_animation_ = animationManager_->getAnimationByName("SWITCH_BLINK");
+            priority_animation_ = animation_manager_->getAnimationByName("SWITCH_BLINK");
         else
-            priority_animation_ = io_->getKey() ? animationManager_->getAnimationByName("RED") : nullptr;
+            priority_animation_ = io_->getKey() ? animation_manager_->getAnimationByName("RED") : nullptr;
     }
     void RGBController::handleTimer()
     {
@@ -162,9 +205,9 @@ namespace Desk
         if (active_animation_ != local_last_animation)
         {
             active_animation_->RestartAnimation();
-            flushRGB_ = true;
+            flush_rgb_ = true;
         }
-        flushRGB_ |= active_animation_->Update(cycle_counter);
+        flush_rgb_ |= active_animation_->Update(cycle_counter);
 
         local_last_animation = active_animation_;
         cycle_counter++;
@@ -180,33 +223,32 @@ namespace Desk
     bool RGBController::BeginRGBTimer(float rate)
     {
         uint8_t timer_type = GPT_TIMER;
-        int8_t tindex = FspTimer::get_available_timer(timer_type);
-        if (tindex < 0)
-        {
-            tindex = FspTimer::get_available_timer(timer_type, true);
-        }
-        if (tindex < 0)
-        {
-            return false;
-        }
+  int8_t tindex = FspTimer::get_available_timer(timer_type);
+  if (tindex < 0) {
+    tindex = FspTimer::get_available_timer(timer_type, true);
+  }
+  if (tindex < 0) {
+    return false;
+  }
 
-        FspTimer::force_use_of_pwm_reserved_timer();
+  FspTimer::force_use_of_pwm_reserved_timer();
 
-        if (!RGBTimer.setup_overflow_irq())
-        {
-            return false;
-        }
+  if (!rgb_timer_.begin(TIMER_MODE_PERIODIC, timer_type, tindex, rate, 0.0f, RGBCallback)) {
+    return false;
+  }
 
-        if (!RGBTimer.open())
-        {
-            return false;
-        }
+  if (!rgb_timer_.setup_overflow_irq()) {
+    return false;
+  }
 
-        if (!RGBTimer.start())
-        {
-            return false;
-        }
-        return true;
-    }
+  if (!rgb_timer_.open()) {
+    return false;
+  }
+
+  if (!rgb_timer_.start()) {
+    return false;
+  }
+  return true;
+}
 
 }
