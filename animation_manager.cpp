@@ -3,26 +3,25 @@
 namespace Desk
 {
     AnimationManager::AnimationManager(struct CRGB *targetArray_, int RGBCount_, Preferences &storage)
+        : leds_(targetArray_), rgb_count_(RGBCount_), storage_(storage)
     {
-        leds = targetArray_;
-        rgb_count = RGBCount_;
-        _storage = storage;
+        // ...existing code...
     }
 
     void AnimationManager::begin()
     {
-        memset(animations, 0, sizeof(animations));
-        animation_count = createAnimationsFromStorage();
+        memset(animations_, 0, sizeof(animations_));
+        animation_count_ = createAnimationsFromStorage();
     }
 
     AnimationManager::~AnimationManager() {}
 
-    int AnimationManager::getAnimationIndex(String name)
+    int AnimationManager::getAnimationIndex(const String &name)
     {
         int i = 0;
         while (i < 100)
         {
-            if (animations[i] != nullptr && name == animations[i]->GetName())
+            if (animations_[i] != nullptr && name == animations_[i]->GetName())
                 break;
             i++;
         }
@@ -37,16 +36,16 @@ namespace Desk
         if (index < 0 || index >= 100)
             return nullptr;
         else
-            return animations[index];
+            return animations_[index];
     }
 
-    IAnimation *AnimationManager::getAnimationByName(String name)
+    IAnimation *AnimationManager::getAnimationByName(const String &name)
     {
         int id = getAnimationIndex(name);
         if (id == -1)
             return nullptr;
         else
-            return animations[id];
+            return animations_[id];
     }
 
     int AnimationManager::createAnimation(AnimationSetting *settings, bool save)
@@ -55,7 +54,7 @@ namespace Desk
             return -1;
 
         int i = 0;
-        while (i < 100 && animations[i] != nullptr)
+        while (i < 100 && animations_[i] != nullptr)
             i++;
         if (i >= 100)
             return -2;
@@ -63,15 +62,15 @@ namespace Desk
         IAnimation *animation = nullptr;
         if (settings->type == STATIC_COLOR)
         {
-            animation = new StaticColorAnimation(leds, rgb_count);
+            animation = new StaticColorAnimation(leds_, rgb_count_);
         }
         else if (settings->type == BLINK)
         {
-            animation = new BlinkAnimation(leds, rgb_count);
+            animation = new BlinkAnimation(leds_, rgb_count_);
         }
         else if (settings->type == PALETTE)
         {
-            animation = new PaletteAnimation(leds, rgb_count);
+            animation = new PaletteAnimation(leds_, rgb_count_);
         }
         else
             return -3;
@@ -80,8 +79,8 @@ namespace Desk
         animation->applyAnimationSetting(settings);
         if (save)
             saveAnimation(settings);
-        animations[i] = animation;
-        animation_count++;
+        animations_[i] = animation;
+        animation_count_++;
         return i;
     }
 
@@ -92,21 +91,21 @@ namespace Desk
 
     void AnimationManager::saveAnimation(AnimationSetting *settings)
     {
-        _storage.begin("anim_data");
+        storage_.begin("anim_data");
         String key = "a" + String(settings->id);
-        _storage.putBytes(key.c_str(), settings, sizeof(AnimationSetting));
-        _storage.end();
+        storage_.putBytes(key.c_str(), settings, sizeof(AnimationSetting));
+        storage_.end();
     }
 
     bool AnimationManager::saveAnimationIndex(int id)
     {
         if (id < 0 || id >= 100)
             return false;
-        if (animations[id] == nullptr)
+        if (animations_[id] == nullptr)
             return false;
 
         AnimationSetting settings;
-        animations[id]->getAnimationSetting(&settings);
+        animations_[id]->getAnimationSetting(&settings);
         saveAnimation(&settings);
         return true;
     }
@@ -117,12 +116,12 @@ namespace Desk
             return;
 
         String key = "a" + String(id);
-        _storage.begin("anim_data", false);
-        _storage.remove(key.c_str());
-        _storage.end();
-        delete animations[id];
-        animations[id] = nullptr;
-        animation_count--;
+        storage_.begin("anim_data", false);
+        storage_.remove(key.c_str());
+        storage_.end();
+        delete animations_[id];
+        animations_[id] = nullptr;
+        animation_count_--;
     }
 
     int AnimationManager::createAnimationsFromStorage()
@@ -133,19 +132,19 @@ namespace Desk
         {
             key = "a" + String(i);
             AnimationSetting tempSettings;
-            _storage.begin("anim_data", false);
-            size_t len = _storage.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
+            storage_.begin("anim_data", false);
+            size_t len = storage_.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
             if (len == sizeof(AnimationSetting))
             {
                 createAnimation(&tempSettings, false);
                 found++;
             }
-            _storage.end();
+            storage_.end();
         }
         return found;
     }
 
-    AnimationSetting *AnimationManager::createSettingsStaticColor(unsigned long color, uint8_t brightness, String name)
+    AnimationSetting *AnimationManager::createSettingsStaticColor(unsigned long color, uint8_t brightness, const String &name)
     {
         if (name.length() > 13)
             return nullptr;
@@ -159,7 +158,7 @@ namespace Desk
         return settings;
     }
 
-    AnimationSetting *AnimationManager::createSettingsBlink(unsigned long color_on, unsigned long color_off, uint8_t cycle_ticks, uint8_t brightness, String name)
+    AnimationSetting *AnimationManager::createSettingsBlink(unsigned long color_on, unsigned long color_off, uint8_t cycle_ticks, uint8_t brightness, const String &name)
     {
         if (name.length() > 13)
             return nullptr;
@@ -177,7 +176,7 @@ namespace Desk
         return settings;
     }
 
-    AnimationSetting *AnimationManager::createSettingsPalette(uint8_t paletteID, uint8_t speed, uint8_t delta, uint8_t brightness, String name)
+    AnimationSetting *AnimationManager::createSettingsPalette(uint8_t paletteID, uint8_t speed, uint8_t delta, uint8_t brightness, const String &name)
     {
         if (name.length() > 13)
             return nullptr;
@@ -195,6 +194,6 @@ namespace Desk
 
     int AnimationManager::getAnimationCount()
     {
-        return animation_count;
+        return animation_count_;
     }
 }

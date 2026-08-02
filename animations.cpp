@@ -14,29 +14,29 @@ namespace Desk
 
     StaticColorAnimation::StaticColorAnimation(struct CRGB *targetArray, int RGBCount)
     {
-        leds = targetArray;
-        rgb_count = RGBCount;
+        leds_ = targetArray;
+        rgb_count_ = RGBCount;
     }
 
     void StaticColorAnimation::ResetSettings()
     {
-        brightness = 0xFF;
-        color = 0xFFFFFF;
-        update_needed = true;
+        brightness_ = 0xFF;
+        color_ = 0xFFFFFF;
+        update_needed_ = true;
     }
 
     void StaticColorAnimation::RestartAnimation()
     {
-        fill_solid(leds, rgb_count, color);
-        FastLED.setBrightness(brightness);
+        fill_solid(leds_, rgb_count_, color_);
+        FastLED.setBrightness(brightness_);
     }
 
     bool StaticColorAnimation::Update(unsigned long tick)
     {
-        if (update_needed)
+        if (update_needed_)
         {
             RestartAnimation();
-            update_needed = false;
+            update_needed_ = false;
             return true;
         }
         return false;
@@ -49,15 +49,15 @@ namespace Desk
         case 0:
             if (value > 0xFFFFFF)
                 return false;
-            color = value;
-            update_needed = true;
+            color_ = value;
+            update_needed_ = true;
             break;
 
         case 1:
             if (value > 0xFF)
                 return false;
-            brightness = (uint8_t)value;
-            update_needed = true;
+            brightness_ = (uint8_t)value;
+            update_needed_ = true;
             break;
         default:
             return false;
@@ -70,9 +70,9 @@ namespace Desk
         switch (index)
         {
         case 0:
-            return color;
+            return color_;
         case 1:
-            return brightness;
+            return brightness_;
         default:
             return -1;
         }
@@ -85,68 +85,68 @@ namespace Desk
 
     String StaticColorAnimation::GetName()
     {
-        return name;
+        return name_;
     }
 
     void StaticColorAnimation::getAnimationSetting(AnimationSetting *settings)
     {
-        settings->id = id;
+        settings->id = id_;
         settings->type = STATIC_COLOR;
 
         memset(settings->name, 0, sizeof(settings->name));
-        int len = name.length();
+        int len = name_.length();
         if (len > 13)
             len = 13;
-        memcpy(settings->name, name.c_str(), len);
+        memcpy(settings->name, name_.c_str(), len);
 
-        settings->data[0] = brightness;
-        settings->data[1] = (uint8_t)(color & 0xFF);
-        settings->data[2] = (uint8_t)((color >> 8) & 0xFF);
-        settings->data[3] = (uint8_t)((color >> 16) & 0xFF);
+        settings->data[0] = brightness_;
+        settings->data[1] = (uint8_t)(color_ & 0xFF);
+        settings->data[2] = (uint8_t)((color_ >> 8) & 0xFF);
+        settings->data[3] = (uint8_t)((color_ >> 16) & 0xFF);
     }
 
     void StaticColorAnimation::applyAnimationSetting(AnimationSetting *settings)
     {
-        id = settings->id;
-        name = String(settings->name, strnlen(settings->name, 13));
-        brightness = settings->data[0];
-        color = 0;
-        color |= settings->data[1];
-        color |= (((unsigned long)settings->data[2]) << 8);
-        color |= (((unsigned long)settings->data[3]) << 16);
+        id_ = settings->id;
+        name_ = String(settings->name, strnlen(settings->name, 13));
+        brightness_ = settings->data[0];
+        color_ = 0;
+        color_ |= settings->data[1];
+        color_ |= (((unsigned long)settings->data[2]) << 8);
+        color_ |= (((unsigned long)settings->data[3]) << 16);
     }
 
     BlinkAnimation::BlinkAnimation(struct CRGB *targetArray, int RGBCount)
     {
-        leds = targetArray;
-        rgb_count = RGBCount;
+        leds_ = targetArray;
+        rgb_count_ = RGBCount;
     }
 
     void BlinkAnimation::ResetSettings()
     {
-        brightness = 0xFF;
-        color_on = 0xFFFFFF;
-        color_off = 0;
-        cycle_ticks = 10;
-        update_needed = true;
+        brightness_ = 0xFF;
+        color_on_ = 0xFFFFFF;
+        color_off_ = 0;
+        cycle_ticks_ = 10;
+        update_needed_ = true;
     }
 
     void BlinkAnimation::RestartAnimation()
     {
-        fill_solid(leds, rgb_count, color_off);
-        FastLED.setBrightness(brightness);
+        fill_solid(leds_, rgb_count_, color_off_);
+        FastLED.setBrightness(brightness_);
     }
 
     bool BlinkAnimation::Update(unsigned long tick)
     {
-        if (!((tick + int(cycle_ticks / 2)) % cycle_ticks))
+        if (!((tick + int(cycle_ticks_ / 2)) % cycle_ticks_))
         {
-            fill_solid(leds, RGB_COUNT, CRGB::Red);
+            fill_solid(leds_, rgb_count_, CRGB::Red);
             return true;
         }
-        else if (!(tick % cycle_ticks))
+        else if (!(tick % cycle_ticks_))
         {
-            fill_solid(leds, RGB_COUNT, CRGB::Black);
+            fill_solid(leds_, rgb_count_, CRGB::Black);
             return true;
         }
         return false;
@@ -159,29 +159,29 @@ namespace Desk
         case 0:
             if (value > 0xFFFFFF)
                 return false;
-            color_on = value;
-            update_needed = true;
+            color_on_ = value;
+            update_needed_ = true;
             break;
 
         case 1:
             if (value > 0xFFFFFF)
                 return false;
-            color_off = value;
-            update_needed = true;
+            color_off_ = value;
+            update_needed_ = true;
             break;
 
         case 2:
             if (value > 0xFF)
                 return false;
-            cycle_ticks = value;
-            update_needed = true;
+            cycle_ticks_ = value;
+            update_needed_ = true;
             break;
 
         case 3:
             if (value > 0xFF)
                 return false;
-            brightness = value;
-            update_needed = true;
+            brightness_ = value;
+            update_needed_ = true;
             break;
         default:
             return false;
@@ -195,13 +195,13 @@ namespace Desk
         switch (index)
         {
         case 0:
-            return color_on;
+            return color_on_;
         case 1:
-            return color_off;
+            return color_off_;
         case 2:
-            return cycle_ticks;
+            return cycle_ticks_;
         case 3:
-            return brightness;
+            return brightness_;
         default:
             return -1;
         }
@@ -214,78 +214,78 @@ namespace Desk
 
     String BlinkAnimation::GetName()
     {
-        return name;
+        return name_;
     }
 
     void BlinkAnimation::getAnimationSetting(AnimationSetting *settings)
     {
-        settings->id = id;
+        settings->id = id_;
         settings->type = BLINK;
 
         memset(settings->name, 0, sizeof(settings->name));
-        int len = name.length();
+        int len = name_.length();
         if (len > 13)
             len = 13;
-        memcpy(settings->name, name.c_str(), len);
+        memcpy(settings->name, name_.c_str(), len);
 
-        settings->data[0] = brightness;
-        settings->data[1] = (uint8_t)(color_on & 0xFF);
-        settings->data[2] = (uint8_t)((color_on >> 8) & 0xFF);
-        settings->data[3] = (uint8_t)((color_on >> 16) & 0xFF);
-        settings->data[4] = (uint8_t)(color_off & 0xFF);
-        settings->data[5] = (uint8_t)((color_off >> 8) & 0xFF);
-        settings->data[6] = (uint8_t)((color_off >> 16) & 0xFF);
-        settings->data[7] = (uint8_t)cycle_ticks;
+        settings->data[0] = brightness_;
+        settings->data[1] = (uint8_t)(color_on_ & 0xFF);
+        settings->data[2] = (uint8_t)((color_on_ >> 8) & 0xFF);
+        settings->data[3] = (uint8_t)((color_on_ >> 16) & 0xFF);
+        settings->data[4] = (uint8_t)(color_off_ & 0xFF);
+        settings->data[5] = (uint8_t)((color_off_ >> 8) & 0xFF);
+        settings->data[6] = (uint8_t)((color_off_ >> 16) & 0xFF);
+        settings->data[7] = (uint8_t)cycle_ticks_;
     }
 
     void BlinkAnimation::applyAnimationSetting(AnimationSetting *settings)
     {
-        id = settings->id;
-        name = String(settings->name, strnlen(settings->name, 13));
-        brightness = settings->data[0];
-        cycle_ticks = settings->data[7];
-        color_on = 0;
-        color_on |= settings->data[1];
-        color_on |= (((unsigned long)settings->data[2]) << 8);
-        color_on |= (((unsigned long)settings->data[3]) << 16);
-        color_off = 0;
-        color_off |= settings->data[4];
-        color_off |= (((unsigned long)settings->data[5]) << 8);
-        color_off |= (((unsigned long)settings->data[6]) << 16);
+        id_ = settings->id;
+        name_ = String(settings->name, strnlen(settings->name, 13));
+        brightness_ = settings->data[0];
+        cycle_ticks_ = settings->data[7];
+        color_on_ = 0;
+        color_on_ |= settings->data[1];
+        color_on_ |= (((unsigned long)settings->data[2]) << 8);
+        color_on_ |= (((unsigned long)settings->data[3]) << 16);
+        color_off_ = 0;
+        color_off_ |= settings->data[4];
+        color_off_ |= (((unsigned long)settings->data[5]) << 8);
+        color_off_ |= (((unsigned long)settings->data[6]) << 16);
     }
 
     PaletteAnimation::PaletteAnimation(struct CRGB *targetArray, int RGBCount)
     {
-        leds = targetArray;
-        rgb_count = RGBCount;
-        currentPalette = RainbowColors_p;
+        leds_ = targetArray;
+        rgb_count_ = RGBCount;
+        current_palette_ = RainbowColors_p;
     }
 
     void PaletteAnimation::ResetSettings()
     {
-        brightness = 255;
-        speed = 10;
-        delta = 3;
-        paletteID = 0;
-        update_needed = true;
+        brightness_ = 255;
+        speed_ = 10;
+        delta_ = 3;
+        palette_id_ = 0;
+        update_needed_ = true;
     }
 
     void PaletteAnimation::RestartAnimation()
     {
-        FastLED.setBrightness(brightness);
-        ChangePalette(paletteID);
+        FastLED.setBrightness(brightness_);
+        ChangePalette(palette_id_);
     }
 
     bool PaletteAnimation::Update(unsigned long tick)
     {
-        uint8_t colorIndex = (uint8_t)((tick * speed) >> 2);
+        uint8_t colorIndex = (uint8_t)((tick * speed_) >> 2);
 
-        CRGB color = ColorFromPalette(currentPalette, colorIndex, 255, LINEARBLEND);
-        fill_solid(leds, rgb_count, color);
+        CRGB color = ColorFromPalette(current_palette_, colorIndex, 255, LINEARBLEND);
+        fill_solid(leds_, rgb_count_, color);
 
-        if (FastLED.getBrightness() != brightness)
+        if (FastLED.getBrightness() != brightness_)
         {
-            FastLED.setBrightness(brightness);
+            FastLED.setBrightness(brightness_);
         }
 
         return true;
@@ -293,40 +293,39 @@ namespace Desk
 
     void PaletteAnimation::ChangePalette(uint8_t id)
     {
-        paletteID = id;
+        palette_id_ = id;
         switch (id)
         {
         case 0:
-            currentPalette = RainbowColors_p;
+            current_palette_ = RainbowColors_p;
             break;
         case 1:
-            currentPalette = PartyColors_p;
+            current_palette_ = PartyColors_p;
             break;
         case 2:
-            currentPalette = OceanColors_p;
+            current_palette_ = OceanColors_p;
             break;
         case 3:
-            currentPalette = ForestColors_p;
+            current_palette_ = ForestColors_p;
             break;
         case 4:
-            currentPalette = HeatColors_p;
+            current_palette_ = HeatColors_p;
             break;
         case 5:
-            currentPalette = LavaColors_p;
+            current_palette_ = LavaColors_p;
             break;
         case 6:
-            currentPalette = CRGBPalette16(CRGB::Black, CRGB::Green, CRGB::Black, CRGB::DarkGreen);
+            current_palette_ = CRGBPalette16(CRGB::Black, CRGB::Green, CRGB::Black, CRGB::DarkGreen);
             break;
         case 7:
-            currentPalette = CRGBPalette16(
+            current_palette_ = CRGBPalette16(
                 CRGB(12, 12, 12),
                 CRGB::Red,
                 CRGB::Gold,
-                CRGB::Red
-            );
+                CRGB::Red);
             break;
         default:
-            currentPalette = RainbowColors_p;
+            current_palette_ = RainbowColors_p;
             break;
         }
     }
@@ -343,17 +342,17 @@ namespace Desk
         case 1:
             if (value > 255)
                 return false;
-            speed = (uint8_t)value;
+            speed_ = (uint8_t)value;
             break;
         case 2:
             if (value > 255)
                 return false;
-            delta = (uint8_t)value;
+            delta_ = (uint8_t)value;
             break;
         case 3:
             if (value > 255)
                 return false;
-            brightness = (uint8_t)value;
+            brightness_ = (uint8_t)value;
             break;
         default:
             return false;
@@ -366,13 +365,13 @@ namespace Desk
         switch (index)
         {
         case 0:
-            return paletteID;
+            return palette_id_;
         case 1:
-            return speed;
+            return speed_;
         case 2:
-            return delta;
+            return delta_;
         case 3:
-            return brightness;
+            return brightness_;
         default:
             return -1;
         }
@@ -385,38 +384,38 @@ namespace Desk
 
     String PaletteAnimation::GetName()
     {
-        return name;
+        return name_;
     }
 
     void PaletteAnimation::getAnimationSetting(AnimationSetting *settings)
     {
-        settings->id = id;
+        settings->id = id_;
         settings->type = PALETTE;
 
         memset(settings->name, 0, sizeof(settings->name));
-        int len = name.length();
+        int len = name_.length();
         if (len > 13)
             len = 13;
-        memcpy(settings->name, name.c_str(), len);
+        memcpy(settings->name, name_.c_str(), len);
 
-        settings->data[0] = brightness;
-        settings->data[1] = paletteID;
-        settings->data[2] = speed;
-        settings->data[3] = delta;
+        settings->data[0] = brightness_;
+        settings->data[1] = palette_id_;
+        settings->data[2] = speed_;
+        settings->data[3] = delta_;
     }
 
     void PaletteAnimation::applyAnimationSetting(AnimationSetting *settings)
     {
-        id = settings->id;
-        name = String(settings->name, strnlen(settings->name, 13));
+        id_ = settings->id;
+        name_ = String(settings->name, strnlen(settings->name, 13));
 
-        brightness = settings->data[0];
-        uint8_t newPalID = settings->data[1];
-        speed = settings->data[2];
-        delta = settings->data[3];
+        brightness_ = settings->data[0];
+        uint8_t new_pal_id = settings->data[1];
+        speed_ = settings->data[2];
+        delta_ = settings->data[3];
 
-        if (speed == 0)
-            speed = 1;
-        ChangePalette(newPalID);
+        if (speed_ == 0)
+            speed_ = 1;
+        ChangePalette(new_pal_id);
     }
 }

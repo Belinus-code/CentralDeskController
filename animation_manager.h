@@ -11,9 +11,9 @@ namespace Desk
         void begin();
         ~AnimationManager();
 
-        int getAnimationIndex(String name);
+        int getAnimationIndex(const String &name);
         IAnimation *getAnimation(int index);
-        IAnimation *getAnimationByName(String name);
+        IAnimation *getAnimationByName(const String &name);
 
         int createAnimation(AnimationSetting *settings, bool save);
         int createAnimation(AnimationSetting *settings);
@@ -23,17 +23,17 @@ namespace Desk
         void deleteAnimation(int id);
         int createAnimationsFromStorage();
 
-        AnimationSetting *createSettingsStaticColor(unsigned long color, uint8_t brightness, String name);
-        AnimationSetting *createSettingsBlink(unsigned long color_on, unsigned long color_off, uint8_t cycle_ticks, uint8_t brightness, String name);
-        AnimationSetting *createSettingsPalette(uint8_t paletteID, uint8_t speed, uint8_t delta, uint8_t brightness, String name);
+        AnimationSetting *createSettingsStaticColor(unsigned long color, uint8_t brightness, const String &name);
+        AnimationSetting *createSettingsBlink(unsigned long color_on, unsigned long color_off, uint8_t cycle_ticks, uint8_t brightness, const String &name);
+        AnimationSetting *createSettingsPalette(uint8_t paletteID, uint8_t speed, uint8_t delta, uint8_t brightness, const String &name);
 
         int getAnimationCount();
 
     private:
-        IAnimation *animations[100];
-        CRGB *leds;
-        int rgb_count = 0;
-        Preferences _storage;
-        int animation_count = 0;
+        IAnimation *animations_[100];
+        CRGB *leds_;
+        int rgb_count_ = 0;
+        Preferences storage_;
+        int animation_count_ = 0;
     };
 }

@@ -6,7 +6,7 @@ namespace Desk
     {
         Serial.println("[TimeManager] Init started. Creating NTPClient.");
         base_offset_ = offset_seconds;
-        timeClient_ = new NTPClient(udp, "pool.ntp.org", offset_seconds, 60000);
+        timeClient_ = new (ntp_buffer_) NTPClient(udp, "pool.ntp.org", offset_seconds, 60000);
         timeClient_->begin();
         Serial.println("[TimeManager] NTPClient created and initialized.");
     }

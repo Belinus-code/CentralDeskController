@@ -9,7 +9,7 @@ namespace Desk
         io_ = io;
         instance_ = this;
         Serial.println("[RGB] Creating Animation Manager");
-        animation_manager_ = new AnimationManager(leds_, RGB_COUNT, prefs);
+        animation_manager_ = new (animation_manager_buffer_) AnimationManager(leds_, RGB_COUNT, prefs);
         FastLED.addLeds<WS2812B, led_pin, GRB>(leds_, RGB_COUNT).setCorrection(TypicalLEDStrip);
         animation_manager_->begin();
 
@@ -100,13 +100,13 @@ namespace Desk
     }
 
     void RGBController::setBrightness(int val)
-    { 
-        rgb_brightness_ = constrain(val, 0, 255); 
+    {
+        rgb_brightness_ = constrain(val, 0, 255);
     }
 
     void RGBController::adjustBrightness(int delta)
-    { 
-        setBrightness(rgb_brightness_ + delta); 
+    {
+        setBrightness(rgb_brightness_ + delta);
     }
 
     void RGBController::toggleUserAnimation()
@@ -157,7 +157,7 @@ namespace Desk
                 user_animation_ = animation_manager_->getAnimation(index);
                 return true;
             }
-            else if(payload == "toggle")
+            else if (payload == "toggle")
             {
                 toggleUserAnimation();
                 return true;
@@ -223,32 +223,38 @@ namespace Desk
     bool RGBController::BeginRGBTimer(float rate)
     {
         uint8_t timer_type = GPT_TIMER;
-  int8_t tindex = FspTimer::get_available_timer(timer_type);
-  if (tindex < 0) {
-    tindex = FspTimer::get_available_timer(timer_type, true);
-  }
-  if (tindex < 0) {
-    return false;
-  }
+        int8_t tindex = FspTimer::get_available_timer(timer_type);
+        if (tindex < 0)
+        {
+            tindex = FspTimer::get_available_timer(timer_type, true);
+        }
+        if (tindex < 0)
+        {
+            return false;
+        }
 
-  FspTimer::force_use_of_pwm_reserved_timer();
+        FspTimer::force_use_of_pwm_reserved_timer();
 
-  if (!rgb_timer_.begin(TIMER_MODE_PERIODIC, timer_type, tindex, rate, 0.0f, RGBCallback)) {
-    return false;
-  }
+        if (!rgb_timer_.begin(TIMER_MODE_PERIODIC, timer_type, tindex, rate, 0.0f, RGBCallback))
+        {
+            return false;
+        }
 
-  if (!rgb_timer_.setup_overflow_irq()) {
-    return false;
-  }
+        if (!rgb_timer_.setup_overflow_irq())
+        {
+            return false;
+        }
 
-  if (!rgb_timer_.open()) {
-    return false;
-  }
+        if (!rgb_timer_.open())
+        {
+            return false;
+        }
 
-  if (!rgb_timer_.start()) {
-    return false;
-  }
-  return true;
-}
+        if (!rgb_timer_.start())
+        {
+            return false;
+        }
+        return true;
+    }
 
 }

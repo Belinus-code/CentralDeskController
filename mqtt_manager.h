@@ -6,6 +6,7 @@
 #include <MqttClient.h>
 #include <WiFiS3.h>
 #include "network.h"
+#include <new>
 
 namespace Desk
 {
@@ -47,6 +48,8 @@ namespace Desk
         std::vector<IMqttNode *> nodes_;
         uint32_t last_publish_time_ = 0;
         uint32_t last_connect_try_ = 0;
+
+        alignas(MqttClient) uint8_t mqtt_buffer_[sizeof(MqttClient)];
         MqttClient *mqtt_client_ = nullptr;
         Network *network_ = nullptr;
 

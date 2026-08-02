@@ -1,6 +1,7 @@
 #pragma once
 #include <FastLED.h>
 #include <FspTimer.h>
+#include <new>
 #include "animation_manager.h"
 #include <Preferences.h>
 #include "system_io.h"
@@ -22,7 +23,7 @@ namespace Desk
         bool setUserAnimation(const String &str);
         bool setPriorityAnimation(const String &str);
         void clearPriorityAnimation();
-        IAnimation* getUserAnimation() const { return user_animation_; }
+        IAnimation *getUserAnimation() const { return user_animation_; }
         void setBrightness(int val);
         void adjustBrightness(int delta);
         void toggleUserAnimation();
@@ -52,6 +53,7 @@ namespace Desk
         bool flush_rgb_ = false;
 
         CRGB leds_[RGB_COUNT];
+        alignas(AnimationManager) uint8_t animation_manager_buffer_[sizeof(AnimationManager)];
         AnimationManager *animation_manager_ = nullptr;
         SystemIO *io_ = nullptr;
         FspTimer rgb_timer_;

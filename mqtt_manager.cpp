@@ -8,7 +8,7 @@ namespace Desk
     {
         instance_ = this;
         network_ = network;
-        mqtt_client_ = new MqttClient(wifi_client);
+        mqtt_client_ = new (mqtt_buffer_) MqttClient(wifi_client);
         mqtt_client_->onMessage(onMqttMessageStatic);
         mqtt_client_->setUsernamePassword(mqtt_user, mqtt_pass);
         nodes_.clear();

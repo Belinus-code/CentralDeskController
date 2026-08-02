@@ -47,13 +47,13 @@ namespace Desk
         void applyAnimationSetting(AnimationSetting *settings) override;
 
     private:
-        uint8_t brightness = 0;
-        unsigned long color = 0xFFFFFF;
-        String name = "";
-        CRGB *leds;
-        int rgb_count = 0;
-        bool update_needed = false;
-        uint8_t id = 0;
+        uint8_t brightness_ = 0;
+        unsigned long color_ = 0xFFFFFF;
+        String name_ = "";
+        CRGB *leds_;
+        int rgb_count_ = 0;
+        bool update_needed_ = false;
+        uint8_t id_ = 0;
     };
 
     class BlinkAnimation : public IAnimation
@@ -71,15 +71,15 @@ namespace Desk
         void applyAnimationSetting(AnimationSetting *settings) override;
 
     private:
-        int id = 0;
-        int brightness = 0;
-        unsigned long color_on = 0xFFFFFF;
-        unsigned long color_off = 0;
-        uint8_t cycle_ticks = 10;
-        String name = "";
-        CRGB *leds;
-        int rgb_count = 0;
-        bool update_needed = false;
+        int id_ = 0;
+        int brightness_ = 0;
+        unsigned long color_on_ = 0xFFFFFF;
+        unsigned long color_off_ = 0;
+        uint8_t cycle_ticks_ = 10;
+        String name_ = "";
+        CRGB *leds_;
+        int rgb_count_ = 0;
+        bool update_needed_ = false;
     };
 
     class PaletteAnimation : public IAnimation
@@ -98,18 +98,18 @@ namespace Desk
         void applyAnimationSetting(AnimationSetting *settings) override;
 
     private:
-        uint8_t id = 0;
-        String name = "";
-        CRGB *leds;
-        int rgb_count;
+        uint8_t id_ = 0;
+        String name_ = "";
+        CRGB *leds_;
+        int rgb_count_;
 
-        CRGBPalette16 currentPalette;
+        CRGBPalette16 current_palette_;
 
-        uint8_t brightness;
-        uint8_t paletteID;
-        uint8_t speed;
-        uint8_t delta;
+        uint8_t brightness_;
+        uint8_t palette_id_;
+        uint8_t speed_;
+        uint8_t delta_;
 
-        bool update_needed = false;
+        bool update_needed_ = false;
     };
 }
