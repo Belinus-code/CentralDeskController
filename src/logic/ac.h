@@ -1,9 +1,9 @@
 #pragma once
 #include <stdint.h>
 #include "Arduino.h"
-#include "system_io.h"
-#include "rgb.h"
-#include "mqtt_manager.h"
+#include "../io/system_io.h"
+#include "../rgb/rgb_controller.h"
+#include "../network/mqtt_manager.h"
 
 namespace Desk
 {

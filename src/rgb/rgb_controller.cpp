@@ -1,4 +1,4 @@
-#include "rgb.h"
+#include "../rgb/rgb_controller.h"
 
 namespace Desk
 {

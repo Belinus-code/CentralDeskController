@@ -1,11 +1,11 @@
-#include "serial_handler.h"
-#include "system_io.h"
-#include "pc.h"
-#include "ac.h"
-#include "rgb.h"
-#include "time_manager.h"
-#include "network.h"
-#include "animations.h"
+#include "../io/serial_handler.h"
+#include "../io/system_io.h"
+#include "../logic/pc.h"
+#include "../logic/ac.h"
+#include "../rgb/rgb_controller.h"
+#include "../logic/time_manager.h"
+#include "../network/network.h"
+#include "../rgb/animations.h"
 
 namespace Desk
 {

@@ -1,6 +1,6 @@
 #pragma once
 #include <Preferences.h>
-#include "animations.h"
+#include "../rgb/animations.h"
 
 namespace Desk
 {

@@ -2,12 +2,12 @@
 #include <FastLED.h>
 #include <FspTimer.h>
 #include <new>
-#include "animation_manager.h"
+#include "../rgb/animation_manager.h"
 #include <Preferences.h>
-#include "system_io.h"
-#include "Arduino.h"
-#include "config.h"
-#include "mqtt_manager.h"
+#include "../io/system_io.h"
+#include "../Arduino.h"
+#include "../../config.h"
+#include "../network/mqtt_manager.h"
 
 namespace Desk
 {

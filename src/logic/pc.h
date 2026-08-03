@@ -1,6 +1,6 @@
 #pragma once
-#include "system_io.h"
-#include "mqtt_manager.h"
+#include "../io/system_io.h"
+#include "../network/mqtt_manager.h"
 
 namespace Desk
 {

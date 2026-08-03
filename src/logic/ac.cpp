@@ -1,4 +1,4 @@
-#include "ac.h"
+#include "../logic/ac.h"
 
 namespace Desk
 {
@@ -12,7 +12,7 @@ namespace Desk
     void AC::update()
     {
         uint32_t time = millis();
-        if (is_timer_active_ && (time - timer_start_ >= timer_duration_) && is_ac_on_) 
+        if (is_timer_active_ && (time - timer_start_ >= timer_duration_) && is_ac_on_)
         {
             Serial.println("[AC] Timer reached & AC ON! Turning AC off.");
             is_timer_active_ = false;
@@ -84,6 +84,8 @@ namespace Desk
         {
             io_->turnOnDTHSensors();
             is_reseting_ = false;
+            last_sensor_poll_ = time; // This way the sensor has a full poll cycle time to wake up again.
+            last_sensor_functioning_ = time;
             Serial.println("[AC] DHT Sensors turned for 10 Seconds. Turning them On Again...");
         }
     }
@@ -161,15 +163,18 @@ namespace Desk
         String upperCmd = cmd;
         upperCmd.toUpperCase();
 
-        if (upperCmd.startsWith("TIMER ")) 
+        if (upperCmd.startsWith("TIMER "))
         {
-            int minutes = upperCmd.substring(6).toInt(); 
-            if (minutes > 0) {
+            int minutes = upperCmd.substring(6).toInt();
+            if (minutes > 0)
+            {
                 is_timer_active_ = true;
                 timer_start_ = millis();
-                timer_duration_ = minutes * 60000UL; 
+                timer_duration_ = minutes * 60000UL;
                 Serial.println("[AC] Timer activated: Automatic deactivation in " + String(minutes) + " minutes.");
-            } else {
+            }
+            else
+            {
                 is_timer_active_ = false;
                 Serial.println("[AC] Timer was cancelled.");
             }
@@ -180,11 +185,11 @@ namespace Desk
             return;
         if (acc == getRcCodeFromString("toggle"))
             lock_system_toggle_ = false;
-            if(is_timer_active_)
-            {
-                is_timer_active_ = false;
-                Serial.println("[AC] Timer was abborted.");
-            }
+        if (is_timer_active_)
+        {
+            is_timer_active_ = false;
+            Serial.println("[AC] Timer was abborted.");
+        }
         io_->sendIRMessage(acc);
     }
 
@@ -193,7 +198,7 @@ namespace Desk
         String lowerCmd = cmd;
         lowerCmd.toLowerCase();
 
-    	if (lowerCmd == "on/off")
+        if (lowerCmd == "on/off")
             return 0xFF00E710;
         if (lowerCmd == "on")
             return 0xFF00E710;

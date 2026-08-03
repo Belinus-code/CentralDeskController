@@ -2,7 +2,7 @@
 #include <WiFiS3.h>
 #include <WiFiUdp.h>
 #include <Arduino.h>
-#include "config.h"
+#include "../../config.h"
 
 namespace Desk
 {

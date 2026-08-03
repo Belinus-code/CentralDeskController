@@ -1,11 +1,11 @@
 #pragma once
 #include "Arduino.h"
-#include "config.h"
+#include "../../config.h"
 #include <vector>
 #include <stdint.h>
 #include <MqttClient.h>
 #include <WiFiS3.h>
-#include "network.h"
+#include "../network/network.h"
 #include <new>
 
 namespace Desk
