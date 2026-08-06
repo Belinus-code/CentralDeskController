@@ -27,6 +27,8 @@ namespace Desk
                     Serial.println("[Network] Wifi Connection Lost. Reconnecting");
                     was_connected_ = false;
                 }
+                // Wifi.begin() may take some Time, so refresh Watchdog to prevent Watchdog Reset
+                WDT.refresh();
                 WiFi.begin(ssid_, pass_);
             }
             else

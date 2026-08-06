@@ -8,6 +8,7 @@
 #define DHTTYPE DHT22
 #define RGB_COUNT 211
 #define COMPUTER_TRESHHOLD 200
+#define PC_STATE_SWITCH_TIME 2000
 #define WATERTANK_TRESHHOLD 500
 #define BLINKING_SPEED 250
 #define PC_TOGGLE_TIME 1000
@@ -64,6 +65,7 @@ constexpr long MQTT_RECONNECT_INTERVALL = 700;
 #define TOPIC_RGB_STATUS_DIG "linus/sundgau74/desk_rgb/status_dig"
 #define TOPIC_AC_CMD "linus/sundgau74/ac/command"
 #define TOPIC_AC_WATER "linus/sundgau74/ac/water_full"
+#define TOPIC_AC_FEEDBACK "linus/sundgau74/ac/feedback"
 
 // ===== NTP DEFINITIONS =====
 

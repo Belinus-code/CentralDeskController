@@ -20,10 +20,10 @@ namespace Desk
         void resetPC();
 
         // returns status of pc given of by its LED-Light
-        bool getPCState() const { return io_->getPcState(); }
+        bool getPCState() const {return current_pc_state_;}
 
         // handels button change isr
-        void onButtonChange(bool button_state);
+        bool onButtonChange(bool button_state);
 
         void publishCall(MqttManager *mqtt);
         void subscribeCall(MqttManager *mqtt);
@@ -34,6 +34,7 @@ namespace Desk
         bool button_overwrite_ = false;
         uint32_t doing_start_ = 0;    // millis-time of starting relay action
         uint32_t doing_duration_ = 0; // Duration of relay action. Zero means no active action
+        uint32_t last_pc_state_differ = 0;
 
         bool current_pc_state_ = false;
         bool last_published_pc_state_ = false;

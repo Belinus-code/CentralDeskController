@@ -103,34 +103,41 @@ namespace Desk
         }
     }
 
+    bool AC::onButtonChange(bool button_state)
+    {
+        if(io_->getSwitch())return false;
+        if(button_state)toggleAc();
+        return true;
+    }
+
     void AC::publishCall(MqttManager *mqtt)
     {
-        if (incase_temp_ != incase_temp_before_)
+        if (abs(incase_temp_ - incase_temp_before_) >= 0.2)
         {
             incase_temp_before_ = incase_temp_;
             mqtt->publish(TOPIC_TEMP, String(incase_temp_), true, 0);
         }
-        if (incase_humid_ != incase_humid_before_)
+        if (abs(incase_humid_ - incase_humid_before_) >= 0.2)
         {
             incase_humid_before_ = incase_humid_;
             mqtt->publish(TOPIC_HUMIDITY, String(incase_humid_), true, 0);
         }
-        if (ac1_temp_ != ac1_temp_before_)
+        if abs((ac1_temp_ - ac1_temp_before_) >= 0.2)
         {
             ac1_temp_before_ = ac1_temp_;
             mqtt->publish(TOPIC_AC_TEMP1, String(ac1_temp_), true, 0);
         }
-        if (ac2_temp_ != ac2_temp_before_)
+        if (abs(ac2_temp_ - ac2_temp_before_) >= 0.2)
         {
             ac2_temp_before_ = ac2_temp_;
             mqtt->publish(TOPIC_AC_TEMP2, String(ac2_temp_), true, 0);
         }
-        if (ac1_humid_ != ac1_humid_before_)
+        if (abs(ac1_humid_ - ac1_humid_before_) >= 0.2)
         {
             ac1_humid_before_ = ac1_humid_;
             mqtt->publish(TOPIC_AC_HUMID1, String(ac1_humid_), true, 0);
         }
-        if (ac2_humid_ != ac2_humid_before_)
+        if (abs(ac2_humid_ - ac2_humid_before_) >= 0.2)
         {
             ac2_humid_before_ = ac2_humid_;
             mqtt->publish(TOPIC_AC_HUMID2, String(ac2_humid_), true, 0);
@@ -139,6 +146,12 @@ namespace Desk
         {
             last_water_ = current_water_;
             mqtt->publish(TOPIC_AC_WATER, String(current_water_), true, 1);
+        }
+
+        if (feedback_string_ != "")
+        {
+            mqtt->publish(TOPIC_AC_FEEDBACK, feedback_string_, true, 2);
+            feedback_string_ = "";
         }
     }
 
@@ -172,11 +185,13 @@ namespace Desk
                 timer_start_ = millis();
                 timer_duration_ = minutes * 60000UL;
                 Serial.println("[AC] Timer activated: Automatic deactivation in " + String(minutes) + " minutes.");
+                feedback_string_ = ("[AC] Timer activated: Automatic deactivation in " + String(minutes) + " minutes.");
             }
             else
             {
                 is_timer_active_ = false;
                 Serial.println("[AC] Timer was cancelled.");
+                feedback_string_ = ("[AC] Timer was cancelled.");
             }
             return;
         }
@@ -189,6 +204,7 @@ namespace Desk
         {
             is_timer_active_ = false;
             Serial.println("[AC] Timer was abborted.");
+            feedback_string_ = "[AC] Timer was abborted.";
         }
         io_->sendIRMessage(acc);
     }

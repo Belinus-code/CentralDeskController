@@ -5,11 +5,11 @@ namespace Desk
 {
   SystemIO *SystemIO::instance_ = nullptr;
 
-  void SystemIO::init(IButtonListener *button_listener)
+  void SystemIO::init()
   {
     Serial.println("[SystemIO] Starting Init");
     instance_ = this;
-    button_listener_ = button_listener;
+    button_listeners_.clear();
     pinMode(key_pin, INPUT);
     pinMode(switch_pin, INPUT);
     pinMode(button_pin, INPUT);
@@ -34,6 +34,11 @@ namespace Desk
     attachInterrupt(switch_pin, switch_isr_static, CHANGE);
     attachInterrupt(button_pin, button_isr_static, CHANGE);
     Serial.println("[SystemIO] Init finished");
+  }
+
+  void SystemIO::addButtonListener(IButtonListener *button_listener)
+  {
+    button_listeners_.push_back(button_listener);
   }
 
   void SystemIO::sendIRMessage(uint32_t value)
@@ -88,13 +93,16 @@ namespace Desk
     return false;
   }
 
-  // Button isr has two jobs. If switch is on (due to electrical reasons for this key has to be on two)
-  // Then Button press directly controlls relay
-  // Else, set a flag for later rgb controll
+  // Button isr has two jobs. If Key is on
+  // Then Button press should affect asynchron action.
+  // Else, set a flag for synchron checking later
   void SystemIO::button_isr()
   {
-    if (getSwitch())
-      button_listener_->onButtonChange(getButton());
+    if (getKey())
+      for(int i = 0; i < button_listeners_.size(); i++)
+      {
+        if(button_listeners_[i]->onButtonChange(getButton()))break;
+      }
     else
       was_button_interrupt_ = true;
   }

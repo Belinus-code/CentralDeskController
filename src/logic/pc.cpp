@@ -1,3 +1,4 @@
+#include "api/Common.h"
 #include "../logic/pc.h"
 
 namespace Desk
@@ -22,8 +23,9 @@ namespace Desk
         io_->setRelais(true);
     }
 
-    void PC::onButtonChange(bool button_state)
+    bool PC::onButtonChange(bool button_state)
     {
+        if(!io_->getSwitch())return false;
         if (button_state)
         {
             button_overwrite_ = true;
@@ -34,6 +36,7 @@ namespace Desk
             button_overwrite_ = false;
             io_->setRelais(false);
         }
+        return true;
     }
 
     void PC::update()
@@ -43,7 +46,20 @@ namespace Desk
             doing_duration_ = 0;
             io_->setRelais(false);
         }
-        current_pc_state_ = getPCState();
+        bool state = io_->getPcState();
+        if(current_pc_state_ != state)
+        {
+            if(last_pc_state_differ == 0)
+            {
+                last_pc_state_differ = millis();
+            }
+            else if(millis() - last_pc_state_differ > PC_STATE_SWITCH_TIME)
+            {
+                last_pc_state_differ = 0;
+                current_pc_state_ = state;
+            }
+        }
+        else last_pc_state_differ = 0;
     }
 
     void PC::publishCall(MqttManager *mqtt)

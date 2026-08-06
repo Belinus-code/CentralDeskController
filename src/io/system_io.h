@@ -2,6 +2,7 @@
 #include "../../config.h"
 #include "Arduino.h"
 #include <DHT.h>
+#include "vector"
 
 namespace Desk
 {
@@ -9,14 +10,15 @@ namespace Desk
   class IButtonListener
   {
   public:
-    virtual void onButtonChange(bool button_state) = 0;
+    virtual bool onButtonChange(bool button_state) = 0;
   };
 
   class SystemIO
   {
   public:
     // Inits all Sensors and sets Pinmodes
-    void init(IButtonListener *button_listener);
+    void init();
+    void addButtonListener(IButtonListener *button_listener);
 
     bool getKey() const { return digitalRead(key_pin); }
 
@@ -46,7 +48,7 @@ namespace Desk
     void turnOnDTHSensors() { digitalWrite(dht_power_pin, HIGH); }
 
   private:
-    IButtonListener *button_listener_ = nullptr;
+    std::vector<IButtonListener *> button_listeners_;
     static SystemIO *instance_;
 
     DHT dht_{dht_pin, DHTTYPE};

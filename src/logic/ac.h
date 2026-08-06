@@ -8,7 +8,7 @@
 namespace Desk
 {
 
-    class AC : public IMqttNode
+    class AC : public IMqttNode, public IButtonListener
     {
     public:
         void init(SystemIO *io, RGBController *rgb);
@@ -19,6 +19,9 @@ namespace Desk
         void publishCall(MqttManager *mqtt);
         void subscribeCall(MqttManager *mqtt);
         bool onMqttMessage(const String &topic, const String &payload);
+
+        // handels button change isr
+        bool onButtonChange(bool button_state);
 
         // Getter for all float sensor values
         float getIncaseTemp() const { return incase_temp_; }
@@ -62,6 +65,8 @@ namespace Desk
         bool is_timer_active_ = false;
         uint32_t timer_start_ = 0;
         uint32_t timer_duration_ = 0;
+
+        String feedback_string_ = "";
 
         uint32_t getRcCodeFromString(const String &cmd);
     };

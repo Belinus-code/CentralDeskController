@@ -36,7 +36,10 @@ void setup()
   }
   Serial.println("[System] Setup started. Creating Objects.");
 
-  io.init(&pc);
+  io.init();
+  io.addButtonListener(&pc);
+  io.addButtonListener(&ac);
+  
   pc.init(&io);
   rgb.init(&io, prefs);
   ac.init(&io, &rgb);
