@@ -1,3 +1,4 @@
+#include "api/Common.h"
 #include "../logic/ac.h"
 
 namespace Desk
@@ -12,6 +13,13 @@ namespace Desk
     void AC::update()
     {
         uint32_t time = millis();
+        if(user_toggle_request_)
+        {
+            if(toggleAc(true))
+            {
+                user_toggle_request_ = false;
+            }
+        }
         if (is_timer_active_ && (time - timer_start_ >= timer_duration_) && is_ac_on_)
         {
             Serial.println("[AC] Timer reached & AC ON! Turning AC off.");
@@ -90,54 +98,57 @@ namespace Desk
         }
     }
 
-    void AC::toggleAc(bool user_triggered)
+    bool AC::toggleAc(bool user_triggered)
     {
         if (user_triggered)
         {
-            io_->sendIRMessage(getRcCodeFromString("toggle"));
+            if(millis() - last_user_toggle_ < AC_TOGGLE_WAIT)return false;
+            last_user_toggle_ = millis();
+            io_->sendIRMessage(AC_IR_TOGGLE);
             lock_system_toggle_ = false;
         }
         else if (!lock_system_toggle_)
         {
-            io_->sendIRMessage(getRcCodeFromString("toggle"));
+            io_->sendIRMessage(AC_IR_TOGGLE);
         }
+        return true;
     }
 
     bool AC::onButtonChange(bool button_state)
     {
         if(io_->getSwitch())return false;
-        if(button_state)toggleAc();
+        if(button_state)user_toggle_request_ = true;
         return true;
     }
 
     void AC::publishCall(MqttManager *mqtt)
     {
-        if (abs(incase_temp_ - incase_temp_before_) >= 0.2)
+        if (abs(incase_temp_ - incase_temp_before_) >= AC_SENSOR_DELTA_THRESHOLD)
         {
             incase_temp_before_ = incase_temp_;
             mqtt->publish(TOPIC_TEMP, String(incase_temp_), true, 0);
         }
-        if (abs(incase_humid_ - incase_humid_before_) >= 0.2)
+        if (abs(incase_humid_ - incase_humid_before_) >= AC_SENSOR_DELTA_THRESHOLD)
         {
             incase_humid_before_ = incase_humid_;
             mqtt->publish(TOPIC_HUMIDITY, String(incase_humid_), true, 0);
         }
-        if abs((ac1_temp_ - ac1_temp_before_) >= 0.2)
+        if (abs(ac1_temp_ - ac1_temp_before_) >= AC_SENSOR_DELTA_THRESHOLD)
         {
             ac1_temp_before_ = ac1_temp_;
             mqtt->publish(TOPIC_AC_TEMP1, String(ac1_temp_), true, 0);
         }
-        if (abs(ac2_temp_ - ac2_temp_before_) >= 0.2)
+        if (abs(ac2_temp_ - ac2_temp_before_) >= AC_SENSOR_DELTA_THRESHOLD)
         {
             ac2_temp_before_ = ac2_temp_;
             mqtt->publish(TOPIC_AC_TEMP2, String(ac2_temp_), true, 0);
         }
-        if (abs(ac1_humid_ - ac1_humid_before_) >= 0.2)
+        if (abs(ac1_humid_ - ac1_humid_before_) >= AC_SENSOR_DELTA_THRESHOLD)
         {
             ac1_humid_before_ = ac1_humid_;
             mqtt->publish(TOPIC_AC_HUMID1, String(ac1_humid_), true, 0);
         }
-        if (abs(ac2_humid_ - ac2_humid_before_) >= 0.2)
+        if (abs(ac2_humid_ - ac2_humid_before_) >= AC_SENSOR_DELTA_THRESHOLD)
         {
             ac2_humid_before_ = ac2_humid_;
             mqtt->publish(TOPIC_AC_HUMID2, String(ac2_humid_), true, 0);
@@ -198,7 +209,7 @@ namespace Desk
         uint32_t acc = getRcCodeFromString(cmd);
         if (acc == 0)
             return;
-        if (acc == getRcCodeFromString("toggle"))
+        if (acc == AC_IR_TOGGLE)
             lock_system_toggle_ = false;
         if (is_timer_active_)
         {
@@ -215,29 +226,29 @@ namespace Desk
         lowerCmd.toLowerCase();
 
         if (lowerCmd == "on/off")
-            return 0xFF00E710;
+            return AC_IR_TOGGLE;
         if (lowerCmd == "on")
-            return 0xFF00E710;
+            return AC_IR_TOGGLE;
         if (lowerCmd == "toggle")
-            return 0xFF00E710;
+            return AC_IR_TOGGLE;
         if (lowerCmd == "off")
-            return 0xFF00E710;
+            return AC_IR_TOGGLE;
         if (lowerCmd == "cool")
-            return 0xEB14E710;
+            return AC_IR_COOL;
         if (lowerCmd == "dry")
-            return 0xF30CE710;
+            return AC_IR_DRY;
         if (lowerCmd == "fan")
-            return 0xF708E710;
+            return AC_IR_FAN;
         if (lowerCmd == "sleep")
-            return 0xFA05E710;
+            return AC_IR_SLEEP;
         if (lowerCmd == "up")
-            return 0xEA15E710;
+            return AC_IR_UP;
         if (lowerCmd == "down")
-            return 0xF20DE710;
+            return AC_IR_DOWN;
         if (lowerCmd == "high")
-            return 0xE916E710;
+            return AC_IR_HIGH;
         if (lowerCmd == "low")
-            return 0xF50AE710;
+            return AC_IR_LOW;
 
         return 0;
     }

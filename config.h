@@ -12,7 +12,7 @@
 #define WATERTANK_TRESHHOLD 500
 #define BLINKING_SPEED 250
 #define PC_TOGGLE_TIME 1000
-#define PC_RESET_TIME 6000;
+#define PC_RESET_TIME 6000
 #define WIFI_CHECK_INTERVAL 5000
 
 // ===== RGB PROGRAMMS =====
@@ -21,12 +21,39 @@
 #define SPARKING 170
 #define DEFAULT_RGB_PRG "RAINBOW"
 
+// ===== ANIMATION MANAGER DEFINES =====
+
+#define MAX_ANIMATIONS 100
+#define ANIMATION_NAME_MAX_LEN 13
+#define ANIMATION_STORAGE_NAMESPACE "anim_data"
+constexpr float RGB_TIMER_RATE_HZ = 20.0f;
+
+// ===== RGB BRIGHTNESS DEFINES =====
+
+constexpr int RGB_BRIGHTNESS_STEP = 10;
+constexpr int RGB_BRIGHTNESS_MIN = 10;
+constexpr int RGB_BRIGHTNESS_MAX = 255;
+
 // ===== AC DEFINES =====
 
 #define AC_SRESET_DURATION 10000
 #define AC_SOFFLINE_TIME 10000
 #define AC_WATER_FULL_TIME 10000
 #define AC_SENSOR_POLL 2500
+#define AC_TOGGLE_WAIT 1000
+constexpr float AC_SENSOR_DELTA_THRESHOLD = 0.2f;
+
+// AC infrared remote codes (NEC protocol). The remote only exposes a single
+// on/off button, so "on", "off" and "toggle" all transmit the same code.
+constexpr uint32_t AC_IR_TOGGLE = 0xFF00E710;
+constexpr uint32_t AC_IR_COOL = 0xEB14E710;
+constexpr uint32_t AC_IR_DRY = 0xF30CE710;
+constexpr uint32_t AC_IR_FAN = 0xF708E710;
+constexpr uint32_t AC_IR_SLEEP = 0xFA05E710;
+constexpr uint32_t AC_IR_UP = 0xEA15E710;
+constexpr uint32_t AC_IR_DOWN = 0xF20DE710;
+constexpr uint32_t AC_IR_HIGH = 0xE916E710;
+constexpr uint32_t AC_IR_LOW = 0xF50AE710;
 
 // ===== PIN DEFINITION =====
 

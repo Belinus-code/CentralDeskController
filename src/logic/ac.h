@@ -12,7 +12,7 @@ namespace Desk
     {
     public:
         void init(SystemIO *io, RGBController *rgb);
-        void toggleAc(bool user_triggered = true);
+        bool toggleAc(bool user_triggered = true);
         void processCommand(const String &cmd);
         void update();
 
@@ -65,6 +65,9 @@ namespace Desk
         bool is_timer_active_ = false;
         uint32_t timer_start_ = 0;
         uint32_t timer_duration_ = 0;
+
+        bool user_toggle_request_ = false;
+        uint32_t last_user_toggle_ = 0;
 
         String feedback_string_ = "";
 

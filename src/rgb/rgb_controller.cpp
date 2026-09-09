@@ -44,7 +44,7 @@ namespace Desk
             delete newSettings;
         }
         user_animation_ = animation_manager_->getAnimationByName("OFF");
-        BeginRGBTimer(20);
+        beginRgbTimer(RGB_TIMER_RATE_HZ);
         Serial.println("[RGB] Init finished");
     }
 
@@ -136,8 +136,8 @@ namespace Desk
         if (last_published_animation_ != user_animation_)
         {
             last_published_animation_ = user_animation_;
-            mqtt->publish(TOPIC_RGB_STATUS, user_animation_->GetName(), true, 1);
-            mqtt->publish(TOPIC_RGB_STATUS_DIG, (user_animation_->GetName() == "OFF" ? "0" : "1"), true, 1);
+            mqtt->publish(TOPIC_RGB_STATUS, user_animation_->getName(), true, 1);
+            mqtt->publish(TOPIC_RGB_STATUS_DIG, (user_animation_->getName() == "OFF" ? "0" : "1"), true, 1);
         }
     }
 
@@ -204,23 +204,23 @@ namespace Desk
             return;
         if (active_animation_ != local_last_animation)
         {
-            active_animation_->RestartAnimation();
+            active_animation_->restartAnimation();
             flush_rgb_ = true;
         }
-        flush_rgb_ |= active_animation_->Update(cycle_counter);
+        flush_rgb_ |= active_animation_->update(cycle_counter);
 
         local_last_animation = active_animation_;
         cycle_counter++;
         interrupts();
     }
 
-    void RGBController::RGBCallback(timer_callback_args_t __attribute((unused)) * p_args)
+    void RGBController::rgbCallback(timer_callback_args_t __attribute((unused)) * p_args)
     {
         if (instance_ != nullptr)
             instance_->handleTimer();
     }
 
-    bool RGBController::BeginRGBTimer(float rate)
+    bool RGBController::beginRgbTimer(float rate)
     {
         uint8_t timer_type = GPT_TIMER;
         int8_t tindex = FspTimer::get_available_timer(timer_type);
@@ -235,7 +235,7 @@ namespace Desk
 
         FspTimer::force_use_of_pwm_reserved_timer();
 
-        if (!rgb_timer_.begin(TIMER_MODE_PERIODIC, timer_type, tindex, rate, 0.0f, RGBCallback))
+        if (!rgb_timer_.begin(TIMER_MODE_PERIODIC, timer_type, tindex, rate, 0.0f, rgbCallback))
         {
             return false;
         }

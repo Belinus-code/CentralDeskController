@@ -59,10 +59,10 @@ namespace Desk
         FspTimer rgb_timer_;
         static RGBController *instance_;
 
-        static void RGBCallback(timer_callback_args_t __attribute((unused)) * p_args);
+        static void rgbCallback(timer_callback_args_t __attribute((unused)) * p_args);
         void handleTimer();
         // Start timer for accurate animation updating
-        bool BeginRGBTimer(float rate);
+        bool beginRgbTimer(float rate);
     };
 
 }

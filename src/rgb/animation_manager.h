@@ -1,6 +1,7 @@
 #pragma once
 #include <Preferences.h>
 #include "../rgb/animations.h"
+#include "../../config.h"
 
 namespace Desk
 {
@@ -30,7 +31,7 @@ namespace Desk
         int getAnimationCount();
 
     private:
-        IAnimation *animations_[100];
+        IAnimation *animations_[MAX_ANIMATIONS];
         CRGB *leds_;
         int rgb_count_ = 0;
         Preferences storage_;

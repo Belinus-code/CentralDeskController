@@ -2,8 +2,8 @@
 
 namespace Desk
 {
-    AnimationManager::AnimationManager(struct CRGB *targetArray_, int RGBCount_, Preferences &storage)
-        : leds_(targetArray_), rgb_count_(RGBCount_), storage_(storage)
+    AnimationManager::AnimationManager(struct CRGB *targetArray_, int rgbCount_, Preferences &storage)
+        : leds_(targetArray_), rgb_count_(rgbCount_), storage_(storage)
     {
         // ...existing code...
     }
@@ -19,13 +19,13 @@ namespace Desk
     int AnimationManager::getAnimationIndex(const String &name)
     {
         int i = 0;
-        while (i < 100)
+        while (i < MAX_ANIMATIONS)
         {
-            if (animations_[i] != nullptr && name == animations_[i]->GetName())
+            if (animations_[i] != nullptr && name == animations_[i]->getName())
                 break;
             i++;
         }
-        if (i < 100)
+        if (i < MAX_ANIMATIONS)
             return i;
         else
             return -1;
@@ -33,7 +33,7 @@ namespace Desk
 
     IAnimation *AnimationManager::getAnimation(int index)
     {
-        if (index < 0 || index >= 100)
+        if (index < 0 || index >= MAX_ANIMATIONS)
             return nullptr;
         else
             return animations_[index];
@@ -54,9 +54,9 @@ namespace Desk
             return -1;
 
         int i = 0;
-        while (i < 100 && animations_[i] != nullptr)
+        while (i < MAX_ANIMATIONS && animations_[i] != nullptr)
             i++;
-        if (i >= 100)
+        if (i >= MAX_ANIMATIONS)
             return -2;
 
         IAnimation *animation = nullptr;
@@ -91,7 +91,7 @@ namespace Desk
 
     void AnimationManager::saveAnimation(AnimationSetting *settings)
     {
-        storage_.begin("anim_data");
+        storage_.begin(ANIMATION_STORAGE_NAMESPACE);
         String key = "a" + String(settings->id);
         storage_.putBytes(key.c_str(), settings, sizeof(AnimationSetting));
         storage_.end();
@@ -99,7 +99,7 @@ namespace Desk
 
     bool AnimationManager::saveAnimationIndex(int id)
     {
-        if (id < 0 || id >= 100)
+        if (id < 0 || id >= MAX_ANIMATIONS)
             return false;
         if (animations_[id] == nullptr)
             return false;
@@ -112,11 +112,11 @@ namespace Desk
 
     void AnimationManager::deleteAnimation(int id)
     {
-        if (id < 0 || id >= 100)
+        if (id < 0 || id >= MAX_ANIMATIONS)
             return;
 
         String key = "a" + String(id);
-        storage_.begin("anim_data", false);
+        storage_.begin(ANIMATION_STORAGE_NAMESPACE, false);
         storage_.remove(key.c_str());
         storage_.end();
         delete animations_[id];
@@ -128,11 +128,11 @@ namespace Desk
     {
         String key = "";
         int found = 0;
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < MAX_ANIMATIONS; i++)
         {
             key = "a" + String(i);
             AnimationSetting tempSettings;
-            storage_.begin("anim_data", false);
+            storage_.begin(ANIMATION_STORAGE_NAMESPACE, false);
             size_t len = storage_.getBytes(key.c_str(), &tempSettings, sizeof(AnimationSetting));
             if (len == sizeof(AnimationSetting))
             {
@@ -146,7 +146,7 @@ namespace Desk
 
     AnimationSetting *AnimationManager::createSettingsStaticColor(unsigned long color, uint8_t brightness, const String &name)
     {
-        if (name.length() > 13)
+        if (name.length() > ANIMATION_NAME_MAX_LEN)
             return nullptr;
         AnimationSetting *settings = new AnimationSetting();
         settings->type = STATIC_COLOR;
@@ -160,7 +160,7 @@ namespace Desk
 
     AnimationSetting *AnimationManager::createSettingsBlink(unsigned long color_on, unsigned long color_off, uint8_t cycle_ticks, uint8_t brightness, const String &name)
     {
-        if (name.length() > 13)
+        if (name.length() > ANIMATION_NAME_MAX_LEN)
             return nullptr;
         AnimationSetting *settings = new AnimationSetting();
         settings->type = BLINK;
@@ -178,7 +178,7 @@ namespace Desk
 
     AnimationSetting *AnimationManager::createSettingsPalette(uint8_t paletteID, uint8_t speed, uint8_t delta, uint8_t brightness, const String &name)
     {
-        if (name.length() > 13)
+        if (name.length() > ANIMATION_NAME_MAX_LEN)
             return nullptr;
 
         AnimationSetting *settings = new AnimationSetting();

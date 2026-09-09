@@ -1,8 +1,8 @@
 #pragma once
 #include <Preferences.h>
 #include <FastLED.h>
+#include "../../config.h"
 
-#define RGB_COUNT 211
 #define STATIC_COLOR 1
 #define BLINK 2
 #define PALETTE 3
@@ -13,7 +13,7 @@ namespace Desk
     {
         uint8_t id;
         uint8_t type;
-        char name[14];
+        char name[ANIMATION_NAME_MAX_LEN + 1];
         uint8_t data[16];
     };
 
@@ -21,13 +21,13 @@ namespace Desk
     {
     public:
         virtual ~IAnimation() = default;
-        virtual void ResetSettings() = 0;
-        virtual void RestartAnimation() = 0;
-        virtual bool Update(unsigned long tick) = 0;
-        virtual String GetAvailableSettings();
-        virtual bool UpdateSetting(int index, unsigned long value);
-        virtual int GetSetting(int index) = 0;
-        virtual String GetName() = 0;
+        virtual void resetSettings() = 0;
+        virtual void restartAnimation() = 0;
+        virtual bool update(unsigned long tick) = 0;
+        virtual String getAvailableSettings();
+        virtual bool updateSetting(int index, unsigned long value);
+        virtual int getSetting(int index) = 0;
+        virtual String getName() = 0;
         virtual void getAnimationSetting(AnimationSetting *settings) = 0;
         virtual void applyAnimationSetting(AnimationSetting *settings) = 0;
     };
@@ -35,14 +35,14 @@ namespace Desk
     class StaticColorAnimation : public IAnimation
     {
     public:
-        StaticColorAnimation(struct CRGB *targetArray, int RGBCount);
-        void ResetSettings() override;
-        void RestartAnimation() override;
-        bool Update(unsigned long tick) override;
-        bool UpdateSetting(int index, unsigned long value) override;
-        int GetSetting(int index) override;
-        String GetAvailableSettings() override;
-        String GetName() override;
+        StaticColorAnimation(struct CRGB *targetArray, int rgbCount);
+        void resetSettings() override;
+        void restartAnimation() override;
+        bool update(unsigned long tick) override;
+        bool updateSetting(int index, unsigned long value) override;
+        int getSetting(int index) override;
+        String getAvailableSettings() override;
+        String getName() override;
         void getAnimationSetting(AnimationSetting *settings) override;
         void applyAnimationSetting(AnimationSetting *settings) override;
 
@@ -59,14 +59,14 @@ namespace Desk
     class BlinkAnimation : public IAnimation
     {
     public:
-        BlinkAnimation(struct CRGB *targetArray, int RGBCount);
-        void ResetSettings() override;
-        void RestartAnimation() override;
-        bool Update(unsigned long tick) override;
-        bool UpdateSetting(int index, unsigned long value) override;
-        int GetSetting(int index) override;
-        String GetAvailableSettings() override;
-        String GetName() override;
+        BlinkAnimation(struct CRGB *targetArray, int rgbCount);
+        void resetSettings() override;
+        void restartAnimation() override;
+        bool update(unsigned long tick) override;
+        bool updateSetting(int index, unsigned long value) override;
+        int getSetting(int index) override;
+        String getAvailableSettings() override;
+        String getName() override;
         void getAnimationSetting(AnimationSetting *settings) override;
         void applyAnimationSetting(AnimationSetting *settings) override;
 
@@ -85,15 +85,15 @@ namespace Desk
     class PaletteAnimation : public IAnimation
     {
     public:
-        PaletteAnimation(struct CRGB *targetArray, int RGBCount);
-        void ResetSettings() override;
-        void RestartAnimation() override;
-        bool Update(unsigned long tick) override;
-        void ChangePalette(uint8_t id);
-        bool UpdateSetting(int index, unsigned long value) override;
-        int GetSetting(int index) override;
-        String GetAvailableSettings() override;
-        String GetName() override;
+        PaletteAnimation(struct CRGB *targetArray, int rgbCount);
+        void resetSettings() override;
+        void restartAnimation() override;
+        bool update(unsigned long tick) override;
+        void changePalette(uint8_t id);
+        bool updateSetting(int index, unsigned long value) override;
+        int getSetting(int index) override;
+        String getAvailableSettings() override;
+        String getName() override;
         void getAnimationSetting(AnimationSetting *settings) override;
         void applyAnimationSetting(AnimationSetting *settings) override;
 

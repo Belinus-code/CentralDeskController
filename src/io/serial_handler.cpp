@@ -207,7 +207,7 @@ namespace Desk
                 if (anim)
                 {
                     Serial.println("Available Settings for " + animName + ":");
-                    Serial.println(anim->GetAvailableSettings());
+                    Serial.println(anim->getAvailableSettings());
                 }
                 else
                 {
@@ -220,7 +220,7 @@ namespace Desk
                 IAnimation *anim = anim_man->getAnimationByName(animName);
                 if (anim)
                 {
-                    int value = anim->GetSetting(index);
+                    int value = anim->getSetting(index);
                     Serial.println("Setting " + String(index) + " is: " + String(value));
                 }
                 else
@@ -243,7 +243,7 @@ namespace Desk
 
                 if (anim)
                 {
-                    if (anim->UpdateSetting(index, value))
+                    if (anim->updateSetting(index, value))
                     {
                         Serial.println("Setting updated.");
                         anim_man->saveAnimationIndex(anim_man->getAnimationIndex(animName));
@@ -269,11 +269,11 @@ namespace Desk
         else if (action == "list")
         {
             int amount = anim_man->getAnimationCount();
-            for (int i = 0; i < amount && i < 100; i++)
+            for (int i = 0; i < amount && i < MAX_ANIMATIONS; i++)
             {
                 IAnimation *ani = anim_man->getAnimation(i);
                 if (ani)
-                    Serial.println(ani->GetName());
+                    Serial.println(ani->getName());
             }
         }
 
@@ -318,13 +318,13 @@ namespace Desk
             dir.toUpperCase();
 
             if (dir == "UP" || dir == "+")
-                rgb_->adjustBrightness(10);
+                rgb_->adjustBrightness(RGB_BRIGHTNESS_STEP);
             else if (dir == "DOWN" || dir == "-")
-                rgb_->adjustBrightness(-10);
+                rgb_->adjustBrightness(-RGB_BRIGHTNESS_STEP);
             else if (dir == "MIN")
-                rgb_->setBrightness(10);
+                rgb_->setBrightness(RGB_BRIGHTNESS_MIN);
             else if (dir == "MAX")
-                rgb_->setBrightness(255);
+                rgb_->setBrightness(RGB_BRIGHTNESS_MAX);
             else
                 Serial.println("Usage: brightness UP/DOWN | +/- | MIN/MAX");
         }
